@@ -1,3 +1,4 @@
+
 export enum CardEffect {
   ATTACK_SMALL = 'ATTACK_SMALL',
   ATTACK_MEDIUM = 'ATTACK_MEDIUM',
@@ -16,6 +17,8 @@ export interface CardData {
   isMatched: boolean;
 }
 
+export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
 export interface Entity {
   name: string;
   maxHp: number;
@@ -24,6 +27,7 @@ export interface Entity {
   coins?: number;
   description?: string;
   dateEncountered?: string;
+  difficulty: Difficulty;
 }
 
 export enum GameState {
@@ -31,7 +35,8 @@ export enum GameState {
   PLAYER_TURN = 'PLAYER_TURN',
   ENEMY_THINKING = 'ENEMY_THINKING',
   ENEMY_ACTING = 'ENEMY_ACTING',
-  VICTORY = 'VICTORY',
+  LEVEL_COMPLETE = 'LEVEL_COMPLETE', // New state for between floors
+  VICTORY = 'VICTORY', // Final victory
   DEFEAT = 'DEFEAT',
 }
 

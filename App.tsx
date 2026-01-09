@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Coins, Skull, RefreshCw, Trophy, ShieldAlert, Zap, ShoppingBag, BookOpen, ArrowLeft, Check, Lock, Flame, Sword, Share2, Copy } from 'lucide-react';
+import { Coins, Skull, RefreshCw, Trophy, ShieldAlert, Zap, ShoppingBag, BookOpen, ArrowLeft, Check, Lock, Flame, Sword, Share2, ArrowUpCircle } from 'lucide-react';
 import Card from './components/Card';
 import HealthBar from './components/HealthBar';
 import { CardData, CardEffect, Entity, GameState, LogEntry, Screen, UserProgress, CardTheme } from './types';
@@ -35,6 +36,10 @@ const App: React.FC = () => {
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
   const [combo, setCombo] = useState<number>(0);
   
+  // Run State
+  const [enemies, setEnemies] = useState<Entity[]>([]);
+  const [currentFloor, setCurrentFloor] = useState(0); // 0, 1, 2
+  
   // Game History for Sharing
   const [matchHistory, setMatchHistory] = useState<string[]>([]);
   const [showCopied, setShowCopied] = useState(false);
@@ -42,19 +47,22 @@ const App: React.FC = () => {
   // Entities
   const [player, setPlayer] = useState<Entity>({ 
     name: 'Hero', 
-    maxHp: 10, 
-    currentHp: 10, 
+    maxHp: 12, 
+    currentHp: 12, 
     shield: 0, 
-    coins: 0 
+    coins: 0,
+    difficulty: 'EASY'
   });
   
-  const [enemy, setEnemy] = useState<Entity>({ 
+  // Derived current enemy
+  const enemy = enemies[currentFloor] || { 
     name: 'Loading...', 
     maxHp: 10, 
     currentHp: 10, 
     shield: 0, 
-    description: '' 
-  });
+    description: '',
+    difficulty: 'EASY'
+  };
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
   
@@ -89,7 +97,7 @@ const App: React.FC = () => {
   };
 
   // --- Game Initialization ---
-  const initGame = useCallback(async () => {
+  const startRun = useCallback(async () => {
     // Initialize audio context on user interaction
     initAudio();
     
@@ -97,30 +105,48 @@ const App: React.FC = () => {
     aiMistakeMade.current = false;
     setGameState(GameState.LOADING);
     setScreen('GAME');
-    const dateStr = getTodayString();
     
-    // Generate board
-    const initialDeck = generateDeck(dateStr);
-    setCards(initialDeck);
-    
-    // Reset Player
-    setPlayer({ name: 'Hero', maxHp: 10, currentHp: 10, shield: 0, coins: 0 });
-    setFlippedIndices([]);
+    // Reset Run State
+    setCurrentFloor(0);
+    setPlayer({ name: 'Hero', maxHp: 12, currentHp: 12, shield: 0, coins: 0, difficulty: 'EASY' });
+    setMatchHistory([]);
     setLogs([]);
+    
+    const dateStr = getTodayString();
+    const dailyEnemies = await generateDailyEnemy(dateStr);
+    setEnemies(dailyEnemies);
+    
+    startLevel(dailyEnemies[0]);
+  }, []);
+
+  const startLevel = (currentEnemy: Entity) => {
+    isGameOverRef.current = false;
+    aiMistakeMade.current = false;
+    aiMemory.current.clear();
     setCombo(0);
+    setFlippedIndices([]);
     setPlayerAnim('');
     setEnemyAnim('');
-    setMatchHistory([]);
-    aiMemory.current.clear();
-
-    // Fetch Enemy
-    const dailyEnemy = await generateDailyEnemy(dateStr);
-    setEnemy(dailyEnemy);
+    
+    // Generate new deck for the floor
+    const initialDeck = generateDeck(`${getTodayString()}-floor-${currentFloor}`);
+    setCards(initialDeck);
     
     setGameState(GameState.PLAYER_TURN);
-    addLog(`A wild ${dailyEnemy.name} appears!`, 'enemy');
-    addLog(dailyEnemy.description || "Prepare for battle!", 'info');
-  }, []);
+    addLog(`Floor ${currentFloor + 1}: ${currentEnemy.name} appears!`, 'enemy');
+    addLog(currentEnemy.description || "Prepare for battle!", 'info');
+  };
+
+  const nextFloor = () => {
+    if (currentFloor < 2) {
+       playSound('ascend');
+       const nextF = currentFloor + 1;
+       setCurrentFloor(nextF);
+       // Small heal between floors
+       setPlayer(p => ({ ...p, currentHp: Math.min(p.maxHp, p.currentHp + 3) }));
+       startLevel(enemies[nextF]);
+    }
+  };
 
   // Scroll logs
   useEffect(() => {
@@ -160,14 +186,14 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (cards.length > 0 && cards.every(c => c.isMatched)) {
-      if (enemy.currentHp > 0 && player.currentHp > 0) {
+      if (enemy.currentHp > 0 && player.currentHp > 0 && gameState === GameState.PLAYER_TURN) {
         const timer = setTimeout(() => {
           reshuffleDeck();
         }, 1500);
         return () => clearTimeout(timer);
       }
     }
-  }, [cards, enemy.currentHp, player.currentHp, reshuffleDeck]);
+  }, [cards, enemy.currentHp, player.currentHp, reshuffleDeck, gameState]);
 
   // --- Combat Logic ---
   const applyEffect = (effect: CardEffect, source: 'PLAYER' | 'ENEMY', currentCombo: number) => {
@@ -190,8 +216,6 @@ const App: React.FC = () => {
       else if (effect.includes('COIN')) emoji = '🪙';
       setMatchHistory(prev => [...prev, emoji]);
     } else {
-      // Record enemy move? Maybe just distinguish with red?
-      // For simplicity, let's only record player moves or major events for the share string
       if (effect.includes('ATTACK')) setMatchHistory(prev => [...prev, '🩸']);
     }
 
@@ -238,7 +262,11 @@ const App: React.FC = () => {
 
     if (effect.includes('ATTACK')) {
       if (isPlayerSource) {
-        setEnemy(prev => damageEntity(prev, value));
+        setEnemies(prev => {
+          const newEnemies = [...prev];
+          newEnemies[currentFloor] = damageEntity(newEnemies[currentFloor], value);
+          return newEnemies;
+        });
         addLog(`Player attacks for ${value} damage!${comboText}`, 'player');
       } else {
         setPlayer(prev => damageEntity(prev, value));
@@ -250,7 +278,11 @@ const App: React.FC = () => {
         setPlayer(prev => ({ ...prev, currentHp: Math.min(prev.maxHp, prev.currentHp + value) }));
         addLog(`Player heals for ${value} HP.${comboText}`, 'heal');
       } else {
-        setEnemy(prev => ({ ...prev, currentHp: Math.min(prev.maxHp, prev.currentHp + value) }));
+        setEnemies(prev => {
+          const newEnemies = [...prev];
+          newEnemies[currentFloor] = { ...newEnemies[currentFloor], currentHp: Math.min(newEnemies[currentFloor].maxHp, newEnemies[currentFloor].currentHp + value) };
+          return newEnemies;
+        });
         addLog(`${enemy.name} heals for ${value} HP.${comboText}`, 'enemy');
       }
     }
@@ -259,7 +291,11 @@ const App: React.FC = () => {
         setPlayer(prev => ({ ...prev, shield: prev.shield + value }));
         addLog(`Player gains ${value} Shield.${comboText}`, 'player');
       } else {
-        setEnemy(prev => ({ ...prev, shield: prev.shield + value }));
+        setEnemies(prev => {
+          const newEnemies = [...prev];
+          newEnemies[currentFloor] = { ...newEnemies[currentFloor], shield: newEnemies[currentFloor].shield + value };
+          return newEnemies;
+        });
         addLog(`${enemy.name} raises a shield (${value}).${comboText}`, 'enemy');
       }
     }
@@ -280,36 +316,39 @@ const App: React.FC = () => {
     const realIndex = cards.findIndex(c => c.id === clickedCard.id);
     if (realIndex === -1) return;
 
-    playSound('flip');
+    playSound('tap');
+    // Small delay to let tap sound play before flip
+    setTimeout(() => {
+        playSound('flip');
+        const newCards = [...cards];
+        newCards[realIndex].isFlipped = true;
+        setCards(newCards);
+        
+        const newFlipped = [...flippedIndices, realIndex];
+        setFlippedIndices(newFlipped);
 
-    const newCards = [...cards];
-    newCards[realIndex].isFlipped = true;
-    setCards(newCards);
-    
-    const newFlipped = [...flippedIndices, realIndex];
-    setFlippedIndices(newFlipped);
+        aiMemory.current.set(realIndex, clickedCard);
 
-    aiMemory.current.set(realIndex, clickedCard);
+        if (newFlipped.length === 2) {
+        const card1 = newCards[newFlipped[0]];
+        const card2 = newCards[newFlipped[1]];
 
-    if (newFlipped.length === 2) {
-      const card1 = newCards[newFlipped[0]];
-      const card2 = newCards[newFlipped[1]];
-
-      if (card1.effect === card2.effect) {
-        // MATCH
-        setTimeout(() => {
-          handleMatch(newFlipped[0], newFlipped[1], card1.effect, 'PLAYER');
-        }, 500);
-      } else {
-        // NO MATCH
-        setTimeout(() => {
-          unflipCards(newFlipped);
-          // End turn, reset combo
-          setCombo(0); 
-          setGameState(GameState.ENEMY_THINKING);
-        }, 1000);
-      }
-    }
+        if (card1.effect === card2.effect) {
+            // MATCH
+            setTimeout(() => {
+            handleMatch(newFlipped[0], newFlipped[1], card1.effect, 'PLAYER');
+            }, 500);
+        } else {
+            // NO MATCH
+            setTimeout(() => {
+            unflipCards(newFlipped);
+            // End turn, reset combo
+            setCombo(0); 
+            setGameState(GameState.ENEMY_THINKING);
+            }, 1000);
+        }
+        }
+    }, 50);
   };
 
   const handleMatch = (idx1: number, idx2: number, effect: CardEffect, who: 'PLAYER' | 'ENEMY') => {
@@ -340,16 +379,13 @@ const App: React.FC = () => {
     aiMemory.current.delete(idx1);
     aiMemory.current.delete(idx2);
 
-    // If enemy matched, they usually get another turn.
-    // However, if the game is about to end, we shouldn't schedule it.
-    // The safest way is to schedule it, but executeAiTurn will check isGameOverRef.
     if (who === 'ENEMY') {
       setTimeout(() => executeAiTurn(), 1000); 
     }
   };
 
   const unflipCards = (indices: number[]) => {
-    playSound('flip'); // Flip back sound
+    playSound('flip');
     setCards(prev => {
       const c = [...prev];
       indices.forEach(i => {
@@ -362,32 +398,39 @@ const App: React.FC = () => {
 
   // --- End Game Checks ---
   useEffect(() => {
-    if (gameState !== GameState.VICTORY && gameState !== GameState.DEFEAT) {
-      if (player.currentHp <= 0) {
-        setGameState(GameState.DEFEAT);
-        playSound('defeat');
-        isGameOverRef.current = true;
-        return;
-      }
-      if (enemy.currentHp <= 0) {
-        setGameState(GameState.VICTORY);
-        playSound('victory');
-        isGameOverRef.current = true;
-        
-        // Save victory progress
-        setUserProgress(prev => {
-           // Add coins
+    // Only check if we are in active combat
+    if (gameState === GameState.VICTORY || gameState === GameState.DEFEAT || gameState === GameState.LEVEL_COMPLETE) return;
+
+    if (player.currentHp <= 0) {
+      setGameState(GameState.DEFEAT);
+      playSound('defeat');
+      isGameOverRef.current = true;
+      return;
+    }
+    
+    // Check enemy death
+    if (enemy && enemy.currentHp <= 0) {
+      isGameOverRef.current = true;
+      
+      // Update Bestiary
+      setUserProgress(prev => {
            const newCoins = prev.coins + (player.coins || 0);
-           // Add to bestiary if not exists
            const knownEnemy = prev.bestiary.find(e => e.name === enemy.name);
            let newBestiary = [...prev.bestiary];
            if (!knownEnemy) {
              newBestiary.push({ ...enemy, dateEncountered: getTodayString() });
            }
            return { ...prev, coins: newCoins, bestiary: newBestiary };
-        });
-        return;
+      });
+
+      if (currentFloor === 2) {
+         setGameState(GameState.VICTORY);
+         playSound('victory');
+      } else {
+         setGameState(GameState.LEVEL_COMPLETE);
+         playSound('victory'); // Or a distinct "Level Clear" sound
       }
+      return;
     }
 
     if (gameState === GameState.ENEMY_THINKING) {
@@ -396,7 +439,7 @@ const App: React.FC = () => {
       }, 1500);
       return () => clearTimeout(aiTimeout);
     }
-  }, [player.currentHp, enemy.currentHp, gameState]);
+  }, [player.currentHp, enemy?.currentHp, gameState, currentFloor]);
 
   // --- AI Logic ---
   const executeAiTurn = () => {
@@ -405,6 +448,29 @@ const App: React.FC = () => {
 
     setGameState(GameState.ENEMY_ACTING);
     const memory = aiMemory.current;
+    
+    // Config based on floor/difficulty
+    let mistakeChance = 0.0;
+    let forgetChance = 0.0;
+    let guaranteedMistake = false;
+
+    switch (enemy.difficulty) {
+        case 'EASY': 
+            mistakeChance = 0.6; 
+            forgetChance = 0.5;
+            guaranteedMistake = true;
+            break;
+        case 'MEDIUM':
+            mistakeChance = 0.3;
+            forgetChance = 0.3;
+            guaranteedMistake = true;
+            break;
+        case 'HARD':
+            mistakeChance = 0.1;
+            forgetChance = 0.1;
+            guaranteedMistake = false;
+            break;
+    }
     
     // Find pair in memory
     let matchFound: [number, number] | null = null;
@@ -419,15 +485,19 @@ const App: React.FC = () => {
       seenEffects.set(card.effect, idx);
     }
 
-    // GUARANTEED MISTAKE LOGIC (Part 1):
-    // If we have a match, but haven't made our guaranteed mistake yet, ignore it.
+    // Mistake Logic
     if (matchFound) {
-       if (!aiMistakeMade.current) {
-         matchFound = null; // Force ignore
-         aiMistakeMade.current = true; // Flag as used
-         // Note: We don't log here, we let it pick a random card below and then potentially miss the 2nd card too.
-       } else if (Math.random() < 0.35) {
-         matchFound = null; // Regular forgetfulness
+       // Guaranteed mistake logic (only happens once per match for Medium, maybe always for Easy?)
+       // Let's stick to "once per match" logic for Medium. Easy acts dumb randomly.
+       
+       let forceError = false;
+       if (guaranteedMistake && !aiMistakeMade.current) {
+          forceError = true;
+          aiMistakeMade.current = true;
+       }
+
+       if (forceError || Math.random() < forgetChance) {
+          matchFound = null; // AI "forgets"
        }
     }
 
@@ -458,7 +528,6 @@ const App: React.FC = () => {
        aiMemory.current.set(firstIdx, card1);
 
        if (!matchFound) {
-          // Check if the card we just flipped matches something in memory
           let pairInMem = -1;
           for (const [idx, mCard] of memory.entries()) {
              if (idx !== firstIdx && !mCard.isMatched && mCard.effect === card1.effect) {
@@ -468,26 +537,23 @@ const App: React.FC = () => {
           }
 
           if (pairInMem !== -1) {
-             // GUARANTEED MISTAKE LOGIC (Part 2):
-             // If we found a match via flip, but haven't made our mistake, force a miss now.
-             if (!aiMistakeMade.current) {
+             let forceError = false;
+             if (guaranteedMistake && !aiMistakeMade.current) {
+                 forceError = true;
+                 aiMistakeMade.current = true;
+             }
+
+             if (forceError || Math.random() < mistakeChance) {
                  const validSeconds = availableIndices.filter(i => i !== firstIdx && i !== pairInMem);
                  if (validSeconds.length > 0) {
                      secondIdx = validSeconds[Math.floor(Math.random() * validSeconds.length)];
-                     aiMistakeMade.current = true;
-                     addLog(`${enemy.name} stumbles and misses the match!`, 'info');
+                     addLog(`${enemy.name} stumbles!`, 'info');
                  } else {
-                     secondIdx = pairInMem; // Only option left
+                     secondIdx = pairInMem; 
                  }
              } else {
-                 // Regular nerf: 40% chance to miss the connection
-                 if (Math.random() < 0.4) {
-                     const validSeconds = availableIndices.filter(i => i !== firstIdx);
-                     secondIdx = validSeconds[Math.floor(Math.random() * validSeconds.length)];
-                 } else {
-                     secondIdx = pairInMem;
-                     addLog(`${enemy.name} recognizes that card!`, 'enemy');
-                 }
+                 secondIdx = pairInMem;
+                 addLog(`${enemy.name} sneers...`, 'enemy');
              }
           } else {
              const validSeconds = availableIndices.filter(i => i !== firstIdx);
@@ -504,12 +570,11 @@ const App: React.FC = () => {
             if (card1.effect === card2.effect) {
                setTimeout(() => {
                  handleMatch(firstIdx, secondIdx, card1.effect, 'ENEMY');
-                 // AI keeps turn handled in handleMatch
                }, 800);
             } else {
                setTimeout(() => {
                  unflipCards([firstIdx, secondIdx]);
-                 setCombo(0); // Reset combo on miss
+                 setCombo(0); 
                  setGameState(GameState.PLAYER_TURN);
                }, 1000);
             }
@@ -531,10 +596,9 @@ const App: React.FC = () => {
   };
 
   const shareResult = async () => {
-    const status = gameState === GameState.VICTORY ? '🏆 Victory' : '💀 Defeat';
-    const hp = Math.ceil(player.currentHp);
+    const status = gameState === GameState.VICTORY ? '🏆 Tower Conquered' : `💀 Died Floor ${currentFloor + 1}`;
     const moves = matchHistory.join('');
-    const text = `Towerflip 🏰\n${new Date().toDateString()}\nVS ${enemy.name}\n${status} (HP: ${hp}/10)\n\n${moves}\n\nPlay now!`;
+    const text = `Towerflip 🏰\n${new Date().toDateString()}\n${status}\n${moves}\n\nPlay now!`;
     
     try {
       await navigator.clipboard.writeText(text);
@@ -562,28 +626,30 @@ const App: React.FC = () => {
     };
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen w-full max-w-2xl mx-auto p-4 gap-8">
-         <div className="text-center space-y-2">
-            <h1 className="text-4xl md:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-indigo-400 to-cyan-400">
+      <div className="flex flex-col items-center justify-center min-h-screen w-full max-w-md mx-auto p-6 gap-6 md:gap-8">
+         <div className="text-center space-y-2 mt-4">
+            <h1 className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-indigo-400 to-cyan-400 leading-tight">
               Towerflip
             </h1>
-            <p className="text-slate-400">Match cards, build combos, survive.</p>
+            <p className="text-slate-400 text-sm">Ascend the daily tower.</p>
          </div>
 
-         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-            <button onClick={initGame} className="col-span-1 sm:col-span-2 bg-indigo-600 hover:bg-indigo-500 text-white p-6 rounded-xl font-bold text-xl transition-all shadow-lg hover:shadow-indigo-500/25 flex items-center justify-center gap-3">
+         <div className="flex flex-col w-full gap-4">
+            <button onClick={startRun} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white p-6 rounded-2xl font-bold text-xl transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-3 active:scale-95">
               <Sword className="w-6 h-6" /> Play Daily Run
             </button>
             
-            <button onClick={() => setScreen('STORE')} className="bg-slate-800 hover:bg-slate-700 text-slate-200 p-6 rounded-xl font-bold transition-all flex flex-col items-center gap-2">
-              <ShoppingBag className="w-8 h-8 text-yellow-500" />
-              <span>Card Store</span>
-            </button>
-            
-            <button onClick={() => setScreen('BESTIARY')} className="bg-slate-800 hover:bg-slate-700 text-slate-200 p-6 rounded-xl font-bold transition-all flex flex-col items-center gap-2">
-              <BookOpen className="w-8 h-8 text-cyan-500" />
-              <span>Bestiary</span>
-            </button>
+            <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => setScreen('STORE')} className="bg-slate-800 hover:bg-slate-700 text-slate-200 p-4 rounded-2xl font-bold transition-all flex flex-col items-center justify-center gap-2 active:scale-95">
+                <ShoppingBag className="w-6 h-6 text-yellow-500" />
+                <span className="text-sm">Store</span>
+                </button>
+                
+                <button onClick={() => setScreen('BESTIARY')} className="bg-slate-800 hover:bg-slate-700 text-slate-200 p-4 rounded-2xl font-bold transition-all flex flex-col items-center justify-center gap-2 active:scale-95">
+                <BookOpen className="w-6 h-6 text-cyan-500" />
+                <span className="text-sm">Bestiary</span>
+                </button>
+            </div>
          </div>
 
          {/* Daily Streak */}
@@ -591,33 +657,33 @@ const App: React.FC = () => {
             <div className="flex items-center gap-3">
               <Flame className={`w-8 h-8 ${canClaim ? 'text-orange-500 animate-pulse' : 'text-slate-600'}`} />
               <div>
-                <h3 className="font-bold text-slate-200">Daily Reward</h3>
-                <p className="text-xs text-slate-500">{canClaim ? 'Available now!' : 'Come back tomorrow'}</p>
+                <h3 className="font-bold text-slate-200 text-sm">Daily Reward</h3>
+                <p className="text-xs text-slate-500">{canClaim ? 'Ready!' : 'Claimed'}</p>
               </div>
             </div>
             <button 
               disabled={!canClaim}
               onClick={claimDaily}
-              className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 ${canClaim ? 'bg-orange-600 hover:bg-orange-500 text-white' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
+              className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 ${canClaim ? 'bg-orange-600 hover:bg-orange-500 text-white' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
             >
               <Coins className="w-4 h-4" />
-              {canClaim ? 'Claim 1' : 'Claimed'}
+              {canClaim ? 'Get 1' : 'Done'}
             </button>
          </div>
 
          {/* Stats */}
-         <div className="flex items-center gap-6 text-slate-400 text-sm font-mono">
+         <div className="flex justify-between w-full text-slate-400 text-xs font-mono px-2">
             <div className="flex items-center gap-2">
-              <Coins className="w-4 h-4 text-yellow-500" />
-              <span>{userProgress.coins} Coins</span>
+              <Coins className="w-3 h-3 text-yellow-500" />
+              <span>{userProgress.coins}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Skull className="w-4 h-4 text-red-500" />
-              <span>{userProgress.bestiary.length} Slain</span>
+              <Skull className="w-3 h-3 text-red-500" />
+              <span>{userProgress.bestiary.length}</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${currentTheme.bgClass}`}></div>
-              <span>Theme: {currentTheme.name}</span>
+              <div className={`w-2 h-2 rounded-full ${currentTheme.bgClass}`}></div>
+              <span className="truncate max-w-[80px]">{currentTheme.name}</span>
             </div>
          </div>
       </div>
@@ -644,38 +710,37 @@ const App: React.FC = () => {
     };
 
     return (
-      <div className="min-h-screen w-full p-4 md:p-8 flex flex-col max-w-4xl mx-auto">
-        <header className="flex items-center justify-between mb-8">
+      <div className="min-h-screen w-full p-4 flex flex-col max-w-4xl mx-auto">
+        <header className="flex items-center justify-between mb-6">
            <button onClick={() => setScreen('MENU')} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
              <ArrowLeft className="w-5 h-5" /> Back
            </button>
-           <div className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-full border border-slate-700">
-             <Coins className="w-5 h-5 text-yellow-500" />
-             <span className="font-bold font-mono">{userProgress.coins}</span>
+           <div className="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
+             <Coins className="w-4 h-4 text-yellow-500" />
+             <span className="font-bold font-mono text-sm">{userProgress.coins}</span>
            </div>
         </header>
 
-        <h2 className="text-3xl font-bold mb-6 text-white flex items-center gap-3">
-          <ShoppingBag className="text-yellow-500" /> Card Back Store
+        <h2 className="text-2xl font-bold mb-6 text-white flex items-center gap-3">
+          <ShoppingBag className="text-yellow-500" /> Store
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
            {CARD_THEMES.map(theme => {
              const isUnlocked = userProgress.unlockedThemes.includes(theme.id);
              const isSelected = userProgress.selectedThemeId === theme.id;
 
              return (
                <div key={theme.id} className={`bg-slate-800 rounded-xl p-4 border-2 transition-all relative overflow-hidden group ${isSelected ? 'border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.2)]' : 'border-slate-700'}`}>
-                  {/* Preview */}
-                  <div className={`w-full aspect-[2/1] rounded-lg mb-4 flex items-center justify-center relative ${theme.bgClass}`}>
-                     <div className={`w-12 h-12 rounded-full flex items-center justify-center ${theme.decorClass}`}>
-                       <div className="w-4 h-4 rounded-full bg-white/20"></div>
+                  <div className={`w-full h-24 rounded-lg mb-4 flex items-center justify-center relative ${theme.bgClass}`}>
+                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${theme.decorClass}`}>
+                       <div className="w-3 h-3 rounded-full bg-white/20"></div>
                      </div>
                   </div>
 
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                       <h3 className="font-bold text-lg">{theme.name}</h3>
+                       <h3 className="font-bold text-base">{theme.name}</h3>
                        <p className="text-xs text-slate-400">{theme.description}</p>
                     </div>
                   </div>
@@ -684,7 +749,7 @@ const App: React.FC = () => {
                     <button 
                       onClick={() => selectTheme(theme.id)}
                       disabled={isSelected}
-                      className={`w-full py-2 rounded-lg font-bold flex items-center justify-center gap-2 ${isSelected ? 'bg-indigo-600/50 text-indigo-200 cursor-default' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
+                      className={`w-full py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 ${isSelected ? 'bg-indigo-600/50 text-indigo-200 cursor-default' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
                     >
                       {isSelected ? <><Check className="w-4 h-4" /> Equipped</> : 'Equip'}
                     </button>
@@ -692,12 +757,12 @@ const App: React.FC = () => {
                     <button 
                       onClick={() => buyTheme(theme)}
                       disabled={userProgress.coins < theme.price}
-                      className={`w-full py-2 rounded-lg font-bold flex items-center justify-center gap-2 ${userProgress.coins >= theme.price ? 'bg-yellow-600 hover:bg-yellow-500 text-white' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
+                      className={`w-full py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 ${userProgress.coins >= theme.price ? 'bg-yellow-600 hover:bg-yellow-500 text-white' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
                     >
                       {userProgress.coins >= theme.price ? (
-                         <>Buy for <Coins className="w-4 h-4" /> {theme.price}</>
+                         <>Buy <Coins className="w-3 h-3" /> {theme.price}</>
                       ) : (
-                         <><Lock className="w-4 h-4" /> {theme.price}</>
+                         <><Lock className="w-3 h-3" /> {theme.price}</>
                       )}
                     </button>
                   )}
@@ -712,36 +777,36 @@ const App: React.FC = () => {
   // --- BESTIARY COMPONENT ---
   const renderBestiary = () => {
     return (
-      <div className="min-h-screen w-full p-4 md:p-8 flex flex-col max-w-4xl mx-auto">
-        <header className="flex items-center justify-between mb-8">
+      <div className="min-h-screen w-full p-4 flex flex-col max-w-4xl mx-auto">
+        <header className="flex items-center justify-between mb-6">
            <button onClick={() => setScreen('MENU')} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
              <ArrowLeft className="w-5 h-5" /> Back
            </button>
         </header>
 
-        <h2 className="text-3xl font-bold mb-6 text-white flex items-center gap-3">
+        <h2 className="text-2xl font-bold mb-6 text-white flex items-center gap-3">
           <BookOpen className="text-cyan-500" /> Bestiary
         </h2>
 
         {userProgress.bestiary.length === 0 ? (
           <div className="text-center py-20 text-slate-500 bg-slate-800/50 rounded-xl border border-slate-700 border-dashed">
-            <Skull className="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <p className="text-xl">No monsters defeated yet.</p>
-            <p className="text-sm">Play the game to fill your journal.</p>
+            <Skull className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p className="text-lg">Empty Journal</p>
+            <p className="text-xs">Defeat monsters to record them.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
              {userProgress.bestiary.map((entry, idx) => (
-               <div key={idx} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex gap-4">
-                  <div className="w-16 h-16 bg-red-900/20 rounded-lg flex items-center justify-center border border-red-500/30 flex-shrink-0">
-                    <Skull className="text-red-500 w-8 h-8" />
+               <div key={idx} className="bg-slate-800 p-3 rounded-xl border border-slate-700 flex gap-3">
+                  <div className="w-12 h-12 bg-red-900/20 rounded-lg flex items-center justify-center border border-red-500/30 flex-shrink-0">
+                    <Skull className="text-red-500 w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg">{entry.name}</h3>
-                    <p className="text-xs text-slate-400 italic mb-2">{entry.description}</p>
-                    <div className="flex gap-3 text-xs font-mono text-slate-500">
+                    <h3 className="font-bold text-sm">{entry.name}</h3>
+                    <p className="text-[10px] text-slate-400 italic mb-1 line-clamp-1">{entry.description}</p>
+                    <div className="flex gap-2 text-[10px] font-mono text-slate-500">
                       <span>HP: {entry.maxHp}</span>
-                      <span>Encountered: {entry.dateEncountered}</span>
+                      <span className="uppercase text-indigo-400">{entry.difficulty}</span>
                     </div>
                   </div>
                </div>
@@ -761,7 +826,7 @@ const App: React.FC = () => {
         <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
           <div className="flex flex-col items-center gap-4 animate-pulse">
             <RefreshCw className="w-12 h-12 animate-spin text-indigo-500" />
-            <p className="text-xl font-mono">Summoning Daily Monster...</p>
+            <p className="text-lg font-mono">Generating Tower...</p>
           </div>
         </div>
       );
@@ -770,64 +835,69 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col md:flex-row max-w-7xl mx-auto overflow-hidden">
         {/* LEFT PANEL */}
-        <div className="w-full md:w-80 lg:w-96 p-2 md:p-4 flex flex-col border-b md:border-b-0 md:border-r border-slate-800 bg-slate-900/50 z-20">
+        <div className="w-full md:w-80 lg:w-96 p-2 md:p-4 flex flex-col border-b md:border-b-0 md:border-r border-slate-800 bg-slate-900/50 z-20 shadow-xl">
           <header className="flex flex-row justify-between items-center mb-2">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">
-                Towerflip
-              </h1>
-              <p className="text-xs text-slate-500 font-mono uppercase">
-                {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-              </p>
-            </div>
-            <button onClick={() => setScreen('MENU')} className="text-xs text-slate-400 hover:text-white">Exit Run</button>
+             <div className="flex flex-col">
+               {/* TOWER PROGRESS */}
+               <div className="flex items-center gap-1 mb-1">
+                 {[0, 1, 2].map(i => (
+                   <div key={i} className={`h-2 w-6 rounded-full transition-all ${currentFloor === i ? 'bg-indigo-500 shadow-lg shadow-indigo-500/50' : currentFloor > i ? 'bg-green-500' : 'bg-slate-700'}`} />
+                 ))}
+               </div>
+               <span className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">Floor {currentFloor + 1} / 3</span>
+             </div>
+             
+             <button onClick={() => setScreen('MENU')} className="text-xs text-slate-400 hover:text-white px-2 py-1 bg-slate-800 rounded">Exit</button>
           </header>
 
-          {/* STATS GRID - Side by Side on Mobile, Stacked on Desktop */}
+          {/* STATS GRID */}
           <div className="grid grid-cols-2 md:grid-cols-1 gap-2 md:gap-4 mb-2 md:mb-4">
              {/* ENEMY SECTION */}
-            <div className={`col-span-1 bg-slate-800/60 p-2 md:p-4 rounded-xl border border-red-900/30 shadow-lg ${enemyAnim}`}>
+            <div className={`col-span-1 bg-slate-800/60 p-2 md:p-4 rounded-xl border border-red-900/30 shadow-lg ${enemyAnim} transition-transform`}>
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 md:w-12 md:h-12 rounded-full bg-red-900/20 flex items-center justify-center border border-red-500/30">
-                  <Skull className="text-red-500 w-4 h-4 md:w-6 md:h-6" />
+                <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-red-900/20 flex items-center justify-center border border-red-500/30">
+                  <Skull className="text-red-500 w-4 h-4 md:w-5 md:h-5" />
                 </div>
                 <div className="overflow-hidden">
-                  <h2 className="font-bold text-sm md:text-lg leading-none truncate">{enemy.name}</h2>
-                  <p className="hidden md:block text-xs text-slate-400 italic mt-1 line-clamp-1">{enemy.description}</p>
+                  <div className="flex items-center gap-1">
+                    <h2 className="font-bold text-xs md:text-sm leading-none truncate">{enemy.name}</h2>
+                    {enemy.difficulty === 'HARD' && <Skull className="w-3 h-3 text-red-600 animate-pulse" />}
+                  </div>
+                  <p className="text-[10px] text-slate-500 uppercase">{enemy.difficulty}</p>
                 </div>
               </div>
-              <HealthBar current={enemy.currentHp} max={enemy.maxHp} shield={enemy.shield} label="ENEMY HP" isEnemy />
+              <HealthBar current={enemy.currentHp} max={enemy.maxHp} shield={enemy.shield} label="ENEMY" isEnemy />
             </div>
 
             {/* PLAYER SECTION */}
-            <div className={`col-span-1 bg-slate-800/60 p-2 md:p-4 rounded-xl border border-indigo-900/30 shadow-lg relative overflow-hidden ${playerAnim}`}>
+            <div className={`col-span-1 bg-slate-800/60 p-2 md:p-4 rounded-xl border border-indigo-900/30 shadow-lg relative overflow-hidden ${playerAnim} transition-transform`}>
               {combo > 1 && (
-                <div className="absolute top-2 right-2 flex items-center gap-1 text-yellow-400 font-bold animate-bounce bg-black/50 px-2 rounded-full border border-yellow-500/50 scale-75 md:scale-100 origin-right">
+                <div className="absolute top-2 right-2 flex items-center gap-1 text-yellow-400 font-bold animate-bounce bg-black/50 px-2 rounded-full border border-yellow-500/50 scale-75 origin-right">
                   <Zap className="w-3 h-3 fill-yellow-400" />
                   <span className="text-xs">x{1 + combo * 0.5}</span>
                 </div>
               )}
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 md:w-12 md:h-12 rounded-full bg-indigo-900/20 flex items-center justify-center border border-indigo-500/30">
-                  <ShieldAlert className="text-indigo-500 w-4 h-4 md:w-6 md:h-6" />
+                <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-indigo-900/20 flex items-center justify-center border border-indigo-500/30">
+                  <ShieldAlert className="text-indigo-500 w-4 h-4 md:w-5 md:h-5" />
                 </div>
                 <div className="flex-1 overflow-hidden">
-                  <h2 className="font-bold text-sm md:text-lg leading-none truncate">{player.name}</h2>
-                  <div className="flex items-center gap-1 mt-1">
+                  <h2 className="font-bold text-xs md:text-sm leading-none truncate">{player.name}</h2>
+                  <div className="flex items-center gap-1 mt-0.5">
                     <Coins className="w-3 h-3 text-yellow-500" />
-                    <span className="text-xs text-yellow-400 font-mono">+{player.coins}</span>
+                    <span className="text-[10px] text-yellow-400 font-mono">+{player.coins}</span>
                   </div>
                 </div>
               </div>
-              <HealthBar current={player.currentHp} max={player.maxHp} shield={player.shield} label="YOUR HP" />
+              <HealthBar current={player.currentHp} max={player.maxHp} shield={player.shield} label="HERO" />
             </div>
           </div>
 
-          <div className="flex-none h-24 md:h-auto md:flex-1 bg-slate-950 rounded-xl border border-slate-800 p-2 md:p-3 overflow-hidden flex flex-col relative">
+          <div className="flex-none h-20 md:h-auto md:flex-1 bg-slate-950 rounded-xl border border-slate-800 p-2 md:p-3 overflow-hidden flex flex-col relative">
             <div className="absolute top-0 left-0 right-0 h-4 bg-gradient-to-b from-slate-950 to-transparent pointer-events-none" />
             <div 
               ref={logContainerRef}
-              className="overflow-y-auto flex-1 pr-2 space-y-1 md:space-y-2 text-xs md:text-sm font-mono scrollbar-thin scrollbar-thumb-slate-700"
+              className="overflow-y-auto flex-1 pr-2 space-y-1 md:space-y-2 text-[10px] md:text-xs font-mono scrollbar-thin scrollbar-thumb-slate-700"
             >
               {logs.length === 0 && <span className="text-slate-600 italic">Battle start...</span>}
               {logs.map((log) => (
@@ -836,7 +906,7 @@ const App: React.FC = () => {
                     log.type === 'player' ? 'text-indigo-400' : 
                     log.type === 'heal' ? 'text-green-400' : 'text-slate-400'}
                 `}>
-                  <span className="opacity-50 text-[10px] mr-2">{'>'}</span>
+                  <span className="opacity-50 text-[10px] mr-1">{'>'}</span>
                   {log.message}
                 </div>
               ))}
@@ -848,24 +918,25 @@ const App: React.FC = () => {
         {/* RIGHT PANEL: BOARD */}
         <div className="flex-1 p-2 md:p-8 flex flex-col items-center justify-center relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black">
           
-          <div className="absolute top-2 md:top-8 flex items-center gap-2 px-3 py-1 md:px-4 md:py-2 rounded-full bg-slate-800/80 backdrop-blur border border-slate-700 shadow-xl z-10 transition-colors duration-500 scale-90 md:scale-100">
+          {/* Turn Indicator */}
+          <div className="absolute top-2 md:top-8 flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/80 backdrop-blur border border-slate-700 shadow-xl z-10 transition-all duration-300">
              {gameState === GameState.PLAYER_TURN ? (
                <>
-                 <span className="relative flex h-3 w-3">
+                 <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
                   </span>
-                  <span className="font-bold text-indigo-300 text-sm md:text-base">Your Turn</span>
+                  <span className="font-bold text-indigo-300 text-xs">Your Turn</span>
                </>
              ) : gameState === GameState.ENEMY_THINKING || gameState === GameState.ENEMY_ACTING ? (
                 <>
-                 <div className="w-3 h-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                 <span className="font-bold text-red-300 text-sm md:text-base">Enemy Turn</span>
+                 <div className="w-2 h-2 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                 <span className="font-bold text-red-300 text-xs">Enemy Turn</span>
                 </>
-             ) : <span className="font-bold text-white text-sm md:text-base">Game Over</span>}
+             ) : <span className="font-bold text-white text-xs">...</span>}
           </div>
 
-          <div className="grid grid-cols-4 gap-2 md:gap-3 w-full max-w-sm md:max-w-md mx-auto aspect-square mt-8 md:mt-0">
+          <div className="grid grid-cols-4 gap-2 md:gap-3 w-full max-w-[85vw] md:max-w-md mx-auto aspect-square mt-8 md:mt-0">
             {cards.map((card) => (
               <Card 
                 key={card.id} 
@@ -878,44 +949,60 @@ const App: React.FC = () => {
             ))}
           </div>
 
-          {(gameState === GameState.VICTORY || gameState === GameState.DEFEAT) && (
-            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-               <div className="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center transform transition-all animate-[fadeIn_0.5s_ease-out]">
-                  {gameState === GameState.VICTORY ? (
+          {/* OVERLAYS (Victory / Defeat / Level Clear) */}
+          {(gameState === GameState.VICTORY || gameState === GameState.DEFEAT || gameState === GameState.LEVEL_COMPLETE) && (
+            <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+               <div className="bg-slate-900 border border-slate-700 p-6 md:p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center transform transition-all animate-[fadeIn_0.5s_ease-out]">
+                  
+                  {gameState === GameState.LEVEL_COMPLETE && (
                     <div className="flex flex-col items-center gap-4">
-                      <Trophy className="w-16 h-16 text-yellow-400 animate-bounce" />
-                      <h2 className="text-3xl font-bold text-white">Victory!</h2>
-                      <p className="text-slate-400">You defeated the {enemy.name} and claimed {player.coins} gold.</p>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-4">
-                      <Skull className="w-16 h-16 text-red-500 animate-pulse" />
-                      <h2 className="text-3xl font-bold text-white">Defeat</h2>
-                      <p className="text-slate-400">The {enemy.name} was too strong...</p>
+                      <ArrowUpCircle className="w-16 h-16 text-green-400 animate-bounce" />
+                      <h2 className="text-2xl font-bold text-white">Floor Cleared!</h2>
+                      <p className="text-slate-400 text-sm">You defeated {enemy.name}.</p>
+                      <div className="bg-slate-800 px-3 py-1 rounded text-xs text-green-300 border border-green-900">
+                        Resting: +3 HP
+                      </div>
+                      <button 
+                        onClick={nextFloor}
+                        className="w-full py-3 mt-4 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg shadow-lg flex items-center justify-center gap-2 animate-pulse"
+                      >
+                         Ascend to Floor {currentFloor + 2} <ArrowUpCircle className="w-4 h-4" />
+                      </button>
                     </div>
                   )}
 
-                  <div className="w-full bg-slate-800 rounded-lg p-3 my-4 font-mono text-xs tracking-widest text-slate-400 break-words border border-slate-700">
-                      {matchHistory.length > 0 ? matchHistory.join(' ') : 'No moves recorded.'}
-                  </div>
-                  
-                  <div className="flex gap-3 w-full">
-                    <button 
-                        onClick={shareResult}
-                        className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                        {showCopied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
-                        {showCopied ? 'Copied!' : 'Share Result'}
-                    </button>
+                  {gameState === GameState.VICTORY && (
+                    <div className="flex flex-col items-center gap-4">
+                      <Trophy className="w-16 h-16 text-yellow-400 animate-bounce" />
+                      <h2 className="text-3xl font-bold text-white">Tower Conquered!</h2>
+                      <p className="text-slate-400">Daily run complete.</p>
+                      <div className="flex gap-2 mt-4 w-full">
+                         <button onClick={shareResult} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center justify-center gap-2">
+                            {showCopied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />} Share
+                         </button>
+                         <button onClick={() => setScreen('MENU')} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg">
+                            Menu
+                         </button>
+                      </div>
+                    </div>
+                  )}
 
-                    <button 
-                        onClick={() => setScreen('MENU')}
-                        className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                        Menu
-                    </button>
-                  </div>
+                  {gameState === GameState.DEFEAT && (
+                    <div className="flex flex-col items-center gap-4">
+                      <Skull className="w-16 h-16 text-red-500 animate-pulse" />
+                      <h2 className="text-3xl font-bold text-white">Defeat</h2>
+                      <p className="text-slate-400">Your climb ends at Floor {currentFloor + 1}.</p>
+                      <div className="flex gap-2 mt-4 w-full">
+                         <button onClick={shareResult} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-lg flex items-center justify-center gap-2">
+                             Share
+                         </button>
+                         <button onClick={() => setScreen('MENU')} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg">
+                            Try Again
+                         </button>
+                      </div>
+                    </div>
+                  )}
+
                </div>
             </div>
           )}

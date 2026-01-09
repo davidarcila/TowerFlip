@@ -1,20 +1,42 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Entity } from "../types";
 
-export const generateDailyEnemy = async (dateString: string): Promise<Entity> => {
-  // Fallback enemy if API fails or key is missing
-  const fallbackEnemy: Entity = {
-    name: "Goblin Runt",
-    maxHp: 10,
-    currentHp: 10,
-    shield: 0,
-    description: "A small, annoying goblin with a rusty dagger.",
-    coins: 0
-  };
+export const generateDailyEnemy = async (dateString: string): Promise<Entity[]> => {
+  // Fallback enemies if API fails
+  const fallbackEnemies: Entity[] = [
+    {
+      name: "Rat Swarm",
+      maxHp: 8,
+      currentHp: 8,
+      shield: 0,
+      description: "A chittering mass of rodents.",
+      coins: 0,
+      difficulty: 'EASY'
+    },
+    {
+      name: "Goblin Guard",
+      maxHp: 12,
+      currentHp: 12,
+      shield: 0,
+      description: "Armed with a dull spear and bad attitude.",
+      coins: 0,
+      difficulty: 'MEDIUM'
+    },
+    {
+      name: "Dungeon Ogre",
+      maxHp: 20,
+      currentHp: 20,
+      shield: 0,
+      description: "A hulking brute blocking the exit.",
+      coins: 0,
+      difficulty: 'HARD'
+    }
+  ];
 
   if (!process.env.API_KEY) {
-    console.warn("No API_KEY found, using fallback enemy.");
-    return fallbackEnemy;
+    console.warn("No API_KEY found, using fallback enemies.");
+    return fallbackEnemies;
   }
 
   try {
@@ -22,38 +44,42 @@ export const generateDailyEnemy = async (dateString: string): Promise<Entity> =>
     
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Generate a fantasy enemy for a card game based on the date: ${dateString}. 
-                 It should be a very weak enemy suitable for a quick battle.
-                 MaxHP should be exactly 10.`,
+      contents: `Generate 3 fantasy enemies for a roguelike card game Daily Run (Date: ${dateString}). 
+                 1. First enemy: Difficulty Easy (Weak, ~8 HP).
+                 2. Second enemy: Difficulty Medium (Average, ~12 HP).
+                 3. Third enemy: Difficulty Hard (Boss, ~20 HP).
+                 Return them as a JSON list.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING },
-            maxHp: { type: Type.INTEGER },
-            description: { type: Type.STRING },
-          },
-          required: ["name", "maxHp", "description"],
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              maxHp: { type: Type.INTEGER },
+              description: { type: Type.STRING },
+            },
+            required: ["name", "maxHp", "description"],
+          }
         },
       },
     });
 
     if (response.text) {
-      const data = JSON.parse(response.text);
-      return {
-        name: data.name,
-        maxHp: data.maxHp,
-        currentHp: data.maxHp,
-        shield: 0,
-        description: data.description,
-        coins: 0
-      };
+      const data = JSON.parse(response.text) as any[];
+      if (Array.isArray(data) && data.length >= 3) {
+         return [
+           { ...data[0], currentHp: data[0].maxHp, shield: 0, coins: 0, difficulty: 'EASY' },
+           { ...data[1], currentHp: data[1].maxHp, shield: 0, coins: 0, difficulty: 'MEDIUM' },
+           { ...data[2], currentHp: data[2].maxHp, shield: 0, coins: 0, difficulty: 'HARD' },
+         ];
+      }
     }
     
-    return fallbackEnemy;
+    return fallbackEnemies;
   } catch (error) {
-    console.error("Error generating enemy:", error);
-    return fallbackEnemy;
+    console.error("Error generating enemies:", error);
+    return fallbackEnemies;
   }
 };

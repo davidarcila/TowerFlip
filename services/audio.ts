@@ -1,3 +1,4 @@
+
 // Simple Web Audio API synthesizer
 let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
@@ -14,7 +15,7 @@ export const initAudio = () => {
   }
 };
 
-type SoundType = 'flip' | 'match' | 'attack' | 'heal' | 'shield' | 'coin' | 'combo' | 'victory' | 'defeat' | 'enemy_match';
+type SoundType = 'tap' | 'flip' | 'match' | 'attack' | 'heal' | 'shield' | 'coin' | 'combo' | 'victory' | 'defeat' | 'enemy_match' | 'ascend';
 
 export const playSound = (type: SoundType) => {
   if (!audioCtx || !masterGain) return;
@@ -27,15 +28,26 @@ export const playSound = (type: SoundType) => {
   gain.connect(masterGain);
 
   switch (type) {
-    case 'flip':
-      // Short click/tick
-      osc.type = 'triangle';
+    case 'tap':
+      // Short high tick for immediate feedback
+      osc.type = 'sine';
       osc.frequency.setValueAtTime(800, t);
-      osc.frequency.exponentialRampToValueAtTime(300, t + 0.05);
-      gain.gain.setValueAtTime(0.5, t);
-      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+      osc.frequency.exponentialRampToValueAtTime(1200, t + 0.03);
+      gain.gain.setValueAtTime(0.3, t);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.03);
       osc.start(t);
-      osc.stop(t + 0.05);
+      osc.stop(t + 0.03);
+      break;
+
+    case 'flip':
+      // Swoosh sound
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(600, t);
+      osc.frequency.exponentialRampToValueAtTime(200, t + 0.1);
+      gain.gain.setValueAtTime(0.4, t);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+      osc.start(t);
+      osc.stop(t + 0.1);
       break;
 
     case 'match':
@@ -118,6 +130,18 @@ export const playSound = (type: SoundType) => {
       gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
       osc.start(t);
       osc.stop(t + 0.4);
+      break;
+
+    case 'ascend':
+       // Magical rising sound
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(300, t);
+      osc.frequency.linearRampToValueAtTime(1200, t + 0.6);
+      gain.gain.setValueAtTime(0.1, t);
+      gain.gain.linearRampToValueAtTime(0.4, t + 0.3);
+      gain.gain.linearRampToValueAtTime(0, t + 0.6);
+      osc.start(t);
+      osc.stop(t + 0.6);
       break;
 
     case 'victory':
