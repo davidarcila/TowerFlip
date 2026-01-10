@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Coins, Skull, RefreshCw, Trophy, ShieldAlert, Zap, ShoppingBag, BookOpen, ArrowLeft, Check, Lock, Flame, Sword, Share2, ArrowUpCircle } from 'lucide-react';
 import Card from './components/Card';
@@ -35,6 +34,7 @@ const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.LOADING);
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
   const [combo, setCombo] = useState<number>(0);
+  const [isShuffling, setIsShuffling] = useState(false);
   
   // Run State
   const [enemies, setEnemies] = useState<Entity[]>([]);
@@ -111,6 +111,7 @@ const App: React.FC = () => {
     setPlayer({ name: 'Hero', maxHp: 12, currentHp: 12, shield: 0, coins: 0, difficulty: 'EASY' });
     setMatchHistory([]);
     setLogs([]);
+    setIsShuffling(false);
     
     const dateStr = getTodayString();
     const dailyEnemies = await generateDailyEnemy(dateStr);
@@ -127,6 +128,7 @@ const App: React.FC = () => {
     setFlippedIndices([]);
     setPlayerAnim('');
     setEnemyAnim('');
+    setIsShuffling(false);
     
     // Generate new deck for the floor
     const initialDeck = generateDeck(`${getTodayString()}-floor-${currentFloor}`);
@@ -161,27 +163,33 @@ const App: React.FC = () => {
     addLog("The dungeon rearranges itself...", 'info');
     playSound('flip');
     
-    let deckEffects: CardEffect[] = [];
-    DECK_COMPOSITION.forEach(effect => {
-      deckEffects.push(effect);
-      deckEffects.push(effect);
-    });
+    // Trigger shuffle out animation
+    setIsShuffling(true);
 
-    for (let i = deckEffects.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [deckEffects[i], deckEffects[j]] = [deckEffects[j], deckEffects[i]];
-    }
+    setTimeout(() => {
+        let deckEffects: CardEffect[] = [];
+        DECK_COMPOSITION.forEach(effect => {
+        deckEffects.push(effect);
+        deckEffects.push(effect);
+        });
 
-    const newCards = deckEffects.map((effect, index) => ({
-      id: `card-round-${Date.now()}-${index}`,
-      effect,
-      isFlipped: false,
-      isMatched: false,
-    }));
-    
-    setCards(newCards);
-    setFlippedIndices([]);
-    aiMemory.current.clear();
+        for (let i = deckEffects.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deckEffects[i], deckEffects[j]] = [deckEffects[j], deckEffects[i]];
+        }
+
+        const newCards = deckEffects.map((effect, index) => ({
+        id: `card-round-${Date.now()}-${index}`,
+        effect,
+        isFlipped: false,
+        isMatched: false,
+        }));
+        
+        setCards(newCards);
+        setFlippedIndices([]);
+        aiMemory.current.clear();
+        setIsShuffling(false);
+    }, 450); // Matches the shuffle-out animation duration
   }, []);
 
   useEffect(() => {
@@ -311,7 +319,7 @@ const App: React.FC = () => {
 
   // --- Interaction Logic ---
   const handleCardClick = (clickedCard: CardData) => {
-    if (gameState !== GameState.PLAYER_TURN || flippedIndices.length >= 2 || isGameOverRef.current) return;
+    if (gameState !== GameState.PLAYER_TURN || flippedIndices.length >= 2 || isGameOverRef.current || isShuffling) return;
 
     const realIndex = cards.findIndex(c => c.id === clickedCard.id);
     if (realIndex === -1) return;
@@ -936,11 +944,13 @@ const App: React.FC = () => {
              ) : <span className="font-bold text-white text-xs">...</span>}
           </div>
 
-          <div className="grid grid-cols-4 gap-2 md:gap-3 w-full max-w-[85vw] md:max-w-md mx-auto aspect-square mt-8 md:mt-0">
-            {cards.map((card) => (
+          <div className="grid grid-cols-4 gap-2 w-full max-w-[min(85vw,55vh)] aspect-square mx-auto mt-8 md:mt-0">
+            {cards.map((card, idx) => (
               <Card 
                 key={card.id} 
-                card={card} 
+                card={card}
+                index={idx}
+                isExitAnimating={isShuffling}
                 onClick={handleCardClick} 
                 disabled={gameState !== GameState.PLAYER_TURN}
                 theme={activeTheme}
