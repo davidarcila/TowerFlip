@@ -3,7 +3,7 @@ import { Coins, Skull, RefreshCw, Trophy, ShieldAlert, Zap, ShoppingBag, BookOpe
 import Card from './components/Card';
 import HealthBar from './components/HealthBar';
 import { CardData, CardEffect, Entity, GameState, LogEntry, Screen, UserProgress, CardTheme } from './types';
-import { generateDeck, EFFECT_CONFIG, DECK_COMPOSITION, CARD_THEMES } from './constants';
+import { generateDeck, EFFECT_CONFIG, DECK_COMPOSITION, CARD_THEMES, GAME_VERSION } from './constants';
 import { generateDailyEnemy } from './services/gemini';
 import { initAudio, playSound } from './services/audio';
 
@@ -189,19 +189,22 @@ const App: React.FC = () => {
         setFlippedIndices([]);
         aiMemory.current.clear();
         setIsShuffling(false);
+        setGameState(GameState.PLAYER_TURN);
+        addLog("Your turn!", 'info');
     }, 450); // Matches the shuffle-out animation duration
   }, []);
 
   useEffect(() => {
     if (cards.length > 0 && cards.every(c => c.isMatched)) {
-      if (enemy.currentHp > 0 && player.currentHp > 0 && gameState === GameState.PLAYER_TURN) {
+      if (enemy.currentHp > 0 && player.currentHp > 0) {
+        // Condition triggered regardless of whose turn it was, ensuring game doesn't stall if Enemy clears board
         const timer = setTimeout(() => {
           reshuffleDeck();
         }, 1500);
         return () => clearTimeout(timer);
       }
     }
-  }, [cards, enemy.currentHp, player.currentHp, reshuffleDeck, gameState]);
+  }, [cards, enemy.currentHp, player.currentHp, reshuffleDeck]);
 
   // --- Combat Logic ---
   const applyEffect = (effect: CardEffect, source: 'PLAYER' | 'ENEMY', currentCombo: number) => {
@@ -634,7 +637,7 @@ const App: React.FC = () => {
     };
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen w-full max-w-md mx-auto p-6 gap-6 md:gap-8">
+      <div className="flex flex-col items-center justify-center min-h-screen w-full max-w-md mx-auto p-6 gap-6 md:gap-8 relative">
          <div className="text-center space-y-2 mt-4">
             <h1 className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-indigo-400 to-cyan-400 leading-tight">
               Towerflip
@@ -693,6 +696,11 @@ const App: React.FC = () => {
               <div className={`w-2 h-2 rounded-full ${currentTheme.bgClass}`}></div>
               <span className="truncate max-w-[80px]">{currentTheme.name}</span>
             </div>
+         </div>
+
+         {/* Version Number */}
+         <div className="absolute bottom-4 text-[10px] text-slate-600 font-mono opacity-50">
+           v{GAME_VERSION}
          </div>
       </div>
     );
@@ -841,7 +849,7 @@ const App: React.FC = () => {
     }
 
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col md:flex-row max-w-7xl mx-auto overflow-hidden">
+      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col md:flex-row max-w-7xl mx-auto">
         {/* LEFT PANEL */}
         <div className="w-full md:w-80 lg:w-96 p-2 md:p-4 flex flex-col border-b md:border-b-0 md:border-r border-slate-800 bg-slate-900/50 z-20 shadow-xl">
           <header className="flex flex-row justify-between items-center mb-2">
@@ -901,7 +909,7 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex-none h-20 md:h-auto md:flex-1 bg-slate-950 rounded-xl border border-slate-800 p-2 md:p-3 overflow-hidden flex flex-col relative">
+          <div className="flex-none h-14 md:h-auto md:flex-1 bg-slate-950 rounded-xl border border-slate-800 p-2 md:p-3 overflow-hidden flex flex-col relative">
             <div className="absolute top-0 left-0 right-0 h-4 bg-gradient-to-b from-slate-950 to-transparent pointer-events-none" />
             <div 
               ref={logContainerRef}
@@ -924,7 +932,7 @@ const App: React.FC = () => {
         </div>
 
         {/* RIGHT PANEL: BOARD */}
-        <div className="flex-1 p-2 md:p-8 flex flex-col items-center justify-center relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black">
+        <div className="flex-1 p-2 md:p-8 flex flex-col items-center justify-start md:justify-center relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black">
           
           {/* Turn Indicator */}
           <div className="absolute top-2 md:top-8 flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/80 backdrop-blur border border-slate-700 shadow-xl z-10 transition-all duration-300">
@@ -944,7 +952,7 @@ const App: React.FC = () => {
              ) : <span className="font-bold text-white text-xs">...</span>}
           </div>
 
-          <div className="grid grid-cols-4 gap-2 w-full max-w-[min(85vw,55vh)] aspect-square mx-auto mt-8 md:mt-0">
+          <div className="grid grid-cols-4 gap-2 w-full max-w-[min(90vw,45vh)] aspect-square mx-auto mt-12 md:mt-0">
             {cards.map((card, idx) => (
               <Card 
                 key={card.id} 
