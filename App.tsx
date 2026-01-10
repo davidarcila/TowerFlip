@@ -158,7 +158,7 @@ const App: React.FC = () => {
   }, [logs]);
 
   // --- Reshuffle Logic ---
-  const reshuffleDeck = useCallback(() => {
+  const reshuffleDeck = useCallback((currentTurnState: GameState) => {
     if (isGameOverRef.current) return;
     addLog("The dungeon rearranges itself...", 'info');
     playSound('flip');
@@ -189,22 +189,29 @@ const App: React.FC = () => {
         setFlippedIndices([]);
         aiMemory.current.clear();
         setIsShuffling(false);
-        setGameState(GameState.PLAYER_TURN);
-        addLog("Your turn!", 'info');
+
+        // Check if it was Enemy's turn when board cleared
+        if (currentTurnState === GameState.ENEMY_ACTING || currentTurnState === GameState.ENEMY_THINKING) {
+           setGameState(GameState.ENEMY_THINKING); // Go back to thinking to re-trigger AI loop
+           addLog(`${enemy.name} prepares to continue...`, 'enemy');
+        } else {
+           setGameState(GameState.PLAYER_TURN);
+           addLog("Your turn!", 'info');
+        }
     }, 450); // Matches the shuffle-out animation duration
-  }, []);
+  }, [enemy.name]);
 
   useEffect(() => {
     if (cards.length > 0 && cards.every(c => c.isMatched)) {
       if (enemy.currentHp > 0 && player.currentHp > 0) {
         // Condition triggered regardless of whose turn it was, ensuring game doesn't stall if Enemy clears board
         const timer = setTimeout(() => {
-          reshuffleDeck();
+          reshuffleDeck(gameState);
         }, 1500);
         return () => clearTimeout(timer);
       }
     }
-  }, [cards, enemy.currentHp, player.currentHp, reshuffleDeck]);
+  }, [cards, enemy.currentHp, player.currentHp, reshuffleDeck, gameState]);
 
   // --- Combat Logic ---
   const applyEffect = (effect: CardEffect, source: 'PLAYER' | 'ENEMY', currentCombo: number) => {

@@ -1,6 +1,6 @@
 import { CardEffect, CardData, CardTheme } from './types';
 
-export const GAME_VERSION = '1.0.7';
+export const GAME_VERSION = '1.0.8';
 
 // Simple seeded RNG for the daily board layout
 export class SeededRNG {
