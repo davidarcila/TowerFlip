@@ -26,6 +26,7 @@ export interface Entity {
   shield: number;
   coins?: number;
   description?: string;
+  imageUrl?: string; // Added for bestiary images
   dateEncountered?: string;
   difficulty: Difficulty;
 }

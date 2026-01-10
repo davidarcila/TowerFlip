@@ -99,6 +99,14 @@
         animation: pop 0.4s ease-out;
       }
 
+      @keyframes heal-glow {
+        0%, 100% { text-shadow: 0 0 5px rgba(52, 211, 153, 0.5); transform: scale(1); }
+        50% { text-shadow: 0 0 20px rgba(52, 211, 153, 1); transform: scale(1.05); }
+      }
+      .animate-heal-glow {
+        animation: heal-glow 2s ease-in-out infinite;
+      }
+
       .anim-damage {
           animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both, flash-damage 0.5s ease-in-out;
       }
