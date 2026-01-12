@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -149,18 +150,35 @@
           animation: flash-heal 0.5s ease-in-out;
       }
 
-      /* Background Pattern Animation */
-      .bg-pattern {
-        background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-                          linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-        background-size: 40px 40px;
+      /* Esoteric Star Background */
+      .bg-esoteric {
+        background: radial-gradient(ellipse at bottom, #1B2735 0%, #090A0F 100%);
       }
-      @keyframes pan-pattern {
-        0% { background-position: 0 0; }
-        100% { background-position: 40px 40px; }
+      
+      .stars-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        z-index: 0;
+        pointer-events: none;
       }
-      .animate-pan {
-        animation: pan-pattern 4s linear infinite;
+
+      .star {
+        position: absolute;
+        background: white;
+        border-radius: 50%;
+        /* Drifting sideways animation */
+        animation: drift-twinkle var(--duration) ease-in-out infinite alternate;
+        opacity: var(--opacity);
+      }
+
+      @keyframes drift-twinkle {
+        0% { transform: translateX(0) scale(1); opacity: var(--opacity); }
+        50% { opacity: 0.5; }
+        100% { transform: translateX(-40px) scale(1.2); opacity: var(--opacity); }
       }
     </style>
   <script type="importmap">

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Coins, Skull, RefreshCw, Trophy, ShieldAlert, Zap, ShoppingBag, BookOpen, ArrowLeft, Check, Lock, Flame, Sword, Share2, ArrowUpCircle, RectangleVertical, Heart, Eye, Clock } from 'lucide-react';
+import { Coins, Skull, RefreshCw, Trophy, ShieldAlert, Zap, ShoppingBag, BookOpen, ArrowLeft, Check, Lock, Flame, Sword, Share2, ArrowUpCircle, RectangleVertical, Heart, Eye, Clock, Castle, Star } from 'lucide-react';
 import Card from './components/Card';
 import HealthBar from './components/HealthBar';
 import { CardData, CardEffect, Entity, GameState, LogEntry, Screen, UserProgress, CardTheme } from './types';
@@ -22,7 +22,43 @@ const LOADING_PHRASES = [
 
 const CLAIM_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-// --- MENU COMPONENT (Extracted to fix Hook Error) ---
+// --- COMPONENTS ---
+
+const StarBackground: React.FC = () => {
+  // Generate random stars only once
+  const [stars] = useState(() => 
+    Array.from({ length: 60 }).map((_, i) => ({
+      id: i,
+      top: `${Math.random() * 100}%`,
+      left: `${Math.random() * 100}%`,
+      size: `${Math.random() * 2 + 1}px`, // 1px to 3px
+      duration: `${Math.random() * 5 + 5}s`, // 5s to 10s duration for slower movement
+      opacity: Math.random() * 0.3 + 0.1 // More subtle: 0.1 to 0.4
+    }))
+  );
+
+  return (
+    <div className="absolute inset-0 z-0 bg-esoteric">
+      <div className="stars-container">
+        {stars.map(star => (
+          <div 
+            key={star.id}
+            className="star"
+            style={{
+              top: star.top,
+              left: star.left,
+              width: star.size,
+              height: star.size,
+              '--duration': star.duration,
+              '--opacity': star.opacity
+            } as React.CSSProperties}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
 interface MenuProps {
   userProgress: UserProgress;
   setUserProgress: React.Dispatch<React.SetStateAction<UserProgress>>;
@@ -31,129 +67,218 @@ interface MenuProps {
 }
 
 const Menu: React.FC<MenuProps> = ({ userProgress, setUserProgress, setScreen, startRun }) => {
-  const today = new Date().toDateString();
   const currentTheme = CARD_THEMES.find(t => t.id === userProgress.selectedThemeId) || CARD_THEMES[0];
   
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  return (
+    <div className="relative z-10 flex flex-col items-center justify-center min-h-screen w-full max-w-md mx-auto p-6 gap-6 md:gap-8">
+         <StarBackground />
+         
+         <div className="relative z-10 flex flex-col items-center w-full gap-6">
+             <div className="text-center space-y-2 mt-4">
+                <h1 className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-indigo-200 to-cyan-200 leading-tight font-serif tracking-tighter drop-shadow-md">
+                  Towerflip
+                </h1>
+                <p className="text-slate-400 text-sm font-serif italic flex items-center justify-center gap-2">
+                   <Star className="w-3 h-3 text-indigo-400" /> The Daily Tower awaits <Star className="w-3 h-3 text-indigo-400" />
+                </p>
+             </div>
+             
+             {/* Play & Store Section */}
+             <div className="flex flex-col w-full gap-4 max-w-sm">
+                <button onClick={startRun} className="w-full bg-indigo-950/80 hover:bg-indigo-900/90 border border-indigo-700/50 text-indigo-100 p-6 rounded-sm font-bold text-xl transition-all shadow-[0_0_20px_rgba(79,70,229,0.2)] flex items-center justify-center gap-3 active:scale-95 group backdrop-blur-sm">
+                  <Sword className="w-5 h-5 group-hover:rotate-45 transition-transform" /> <span className="font-serif tracking-widest">ENTER</span>
+                </button>
+                
+                <div className="grid grid-cols-2 gap-4">
+                    <button onClick={() => setScreen('STORE')} className="bg-slate-900/80 hover:bg-slate-800 border border-slate-700/50 text-slate-300 p-4 rounded-sm font-bold transition-all flex flex-col items-center justify-center gap-2 active:scale-95 backdrop-blur-sm">
+                    <ShoppingBag className="w-5 h-5 text-amber-600" />
+                    <span className="text-xs uppercase tracking-widest">Store</span>
+                    </button>
+                    
+                    <button onClick={() => setScreen('BESTIARY')} className="bg-slate-900/80 hover:bg-slate-800 border border-slate-700/50 text-slate-300 p-4 rounded-sm font-bold transition-all flex flex-col items-center justify-center gap-2 active:scale-95 backdrop-blur-sm">
+                    <BookOpen className="w-5 h-5 text-indigo-500" />
+                    <span className="text-xs uppercase tracking-widest">Bestiary</span>
+                    </button>
+                </div>
+             </div>
+    
+             {/* Separator */}
+             <div className="w-full max-w-[200px] h-px bg-gradient-to-r from-transparent via-indigo-900 to-transparent my-2" />
+    
+             {/* Stats */}
+             <div className="grid grid-cols-3 gap-3 w-full max-w-sm">
+                <div className="bg-slate-900/60 border border-slate-800 p-3 rounded flex flex-col items-center justify-center gap-1 shadow-lg backdrop-blur-sm">
+                  <Coins className="w-5 h-5 text-amber-500" />
+                  <div className="flex flex-col items-center leading-none">
+                     <span className="text-amber-100 font-bold font-mono text-sm">{userProgress.coins}</span>
+                     <span className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">Gold</span>
+                  </div>
+                </div>
+                
+                <div className="bg-slate-900/60 border border-slate-800 p-3 rounded flex flex-col items-center justify-center gap-1 shadow-lg backdrop-blur-sm">
+                  <Skull className="w-5 h-5 text-red-500" />
+                  <div className="flex flex-col items-center leading-none">
+                     <span className="text-red-100 font-bold font-mono text-sm">{userProgress.bestiary.length}</span>
+                     <span className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">Kills</span>
+                  </div>
+                </div>
+    
+                <div className="bg-slate-900/60 border border-slate-800 p-3 rounded flex flex-col items-center justify-center gap-1 shadow-lg backdrop-blur-sm">
+                  <RectangleVertical className="w-5 h-5 text-indigo-400" />
+                  <div className="flex flex-col items-center leading-none w-full">
+                     <span className="text-indigo-100 font-bold font-mono text-xs truncate max-w-[80px]">{currentTheme.name}</span>
+                     <span className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">Theme</span>
+                  </div>
+                </div>
+             </div>
+    
+             {/* Version Number */}
+             <div className="absolute bottom-[-20px] text-[10px] text-slate-600 font-mono">
+               v{GAME_VERSION}
+             </div>
+         </div>
+    </div>
+  );
+};
 
-  useEffect(() => {
-      const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
-      return () => clearInterval(timer);
-  }, []);
+// --- TOWER TRANSITION SCREEN ---
+const TowerLevelTransition = ({ currentFloor, onNext }: { currentFloor: number, onNext: () => void }) => {
+    // Current floor passed here is the one JUST defeated (0 or 1). We are about to go to (currentFloor + 1).
 
-  const lastClaim = userProgress.lastClaimTimestamp || 0;
-  const timeSinceClaim = currentTime - lastClaim;
-  const canClaim = timeSinceClaim >= CLAIM_COOLDOWN_MS;
+    // Map configuration
+    const floors = [
+        { id: 0, label: "Floor 1", icon: <Sword className="w-4 h-4" /> },
+        { id: 1, label: "Floor 2", icon: <ShieldAlert className="w-4 h-4" /> },
+        { id: 2, label: "The Top", icon: <Skull className="w-5 h-5" />, isBoss: true }
+    ];
+
+    // Animation state
+    const [animating, setAnimating] = useState(false);
+    
+    useEffect(() => {
+        const timer = setTimeout(() => setAnimating(true), 500);
+        return () => clearTimeout(timer);
+    }, []);
+
+    return (
+        <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950 p-6 rounded-lg border border-slate-800 shadow-2xl relative overflow-hidden">
+            <div className="absolute inset-0 bg-esoteric opacity-50"></div>
+            
+            <h2 className="text-2xl font-serif text-slate-200 mb-8 relative z-10">Ascending Tower</h2>
+            
+            <div className="flex flex-col-reverse gap-6 relative z-10 w-full max-w-[200px]">
+                {/* Connecting Line */}
+                <div className="absolute left-1/2 top-4 bottom-4 w-1 bg-slate-800 -translate-x-1/2 rounded-full"></div>
+                
+                {floors.map((floor) => {
+                    const isDefeated = floor.id <= currentFloor;
+                    const isNext = floor.id === currentFloor + 1;
+                    const isFuture = floor.id > currentFloor + 1;
+
+                    return (
+                        <div key={floor.id} className={`relative flex items-center justify-between w-full p-3 rounded-lg border transition-all duration-1000 z-10
+                            ${isDefeated ? 'bg-emerald-900/20 border-emerald-900/50' : ''}
+                            ${isNext ? 'bg-indigo-900/40 border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.3)]' : ''}
+                            ${isFuture ? 'bg-slate-900 border-slate-800 opacity-50' : ''}
+                        `}>
+                            <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 
+                                    ${isDefeated ? 'bg-emerald-900 border-emerald-700 text-emerald-400' : ''}
+                                    ${isNext ? 'bg-indigo-900 border-indigo-400 text-indigo-300 animate-pulse' : ''}
+                                    ${isFuture ? 'bg-slate-800 border-slate-700 text-slate-600' : ''}
+                                `}>
+                                    {isDefeated ? <Check className="w-4 h-4" /> : floor.icon}
+                                </div>
+                                <span className={`font-serif font-bold text-sm tracking-wider ${isNext ? 'text-white' : 'text-slate-400'}`}>
+                                    {floor.label}
+                                </span>
+                            </div>
+
+                            {/* Player Marker Animation */}
+                            {isDefeated && floor.id === currentFloor && (
+                                <div className={`absolute right-4 text-white transition-all duration-[1500ms] ease-in-out ${animating ? '-translate-y-[calc(100%+24px)] opacity-0' : 'opacity-100'}`}>
+                                    <div className="w-2 h-2 bg-white rounded-full shadow-[0_0_10px_white]"></div>
+                                </div>
+                            )}
+                            
+                            {isNext && (
+                                <div className={`absolute right-4 text-white transition-all duration-[1000ms] delay-[1400ms] ${animating ? 'opacity-100 scale-100' : 'opacity-0 scale-0'}`}>
+                                    <ArrowUpCircle className="w-5 h-5 text-indigo-400" />
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            <button 
+                onClick={onNext}
+                className="mt-10 px-8 py-3 bg-indigo-900/80 hover:bg-indigo-900 border border-indigo-500/50 text-indigo-200 font-bold rounded-sm shadow-lg flex items-center justify-center gap-2 uppercase tracking-widest text-xs transition-all hover:scale-105 active:scale-95 relative z-10"
+            >
+                Continue Climb <ArrowUpCircle className="w-4 h-4" />
+            </button>
+        </div>
+    );
+}
+
+// --- TOWER ASCENSION VICTORY COMPONENT (End of Run) ---
+const TowerAscension = ({ onContinue, floorCleared, onShare, showCopied }: { onContinue: () => void, floorCleared: boolean, onShare: () => void, showCopied: boolean }) => {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const todayIndex = new Date().getDay();
   
-  const timeRemaining = CLAIM_COOLDOWN_MS - timeSinceClaim;
-  const hours = Math.floor(timeRemaining / (1000 * 60 * 60));
-  const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
-  const seconds = Math.floor((timeRemaining % (1000 * 60)) / 1000);
-  const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-
-  const claimDaily = () => {
-    playSound('coin');
-    setUserProgress(prev => ({
-      ...prev,
-      coins: prev.coins + 10,
-      lastDailyClaim: today,
-      lastClaimTimestamp: Date.now()
-    }));
+  const renderFloors = () => {
+    return days.map((day, idx) => {
+        let status = 'locked';
+        if (idx < todayIndex) status = 'cleared';
+        if (idx === todayIndex) status = 'current';
+        
+        const isToday = idx === todayIndex;
+        
+        return (
+            <div key={day} className={`
+                flex items-center justify-center w-64 h-16 border-x-4 border-t border-b mb-1 relative transition-all duration-1000
+                ${isToday && floorCleared ? 'border-emerald-700 bg-emerald-900/30' : 'border-slate-800 bg-slate-900/50'}
+                ${idx < todayIndex ? 'opacity-50 border-slate-800' : ''}
+                ${idx > todayIndex ? 'opacity-30 border-slate-800 border-dashed' : ''}
+            `}>
+                <span className={`font-serif font-bold tracking-widest uppercase ${isToday ? 'text-white' : 'text-slate-500'}`}>
+                    {day}
+                </span>
+                
+                {isToday && (
+                    <div className="absolute -left-12 text-emerald-500 animate-bounce">
+                        <ArrowUpCircle className="w-8 h-8" />
+                    </div>
+                )}
+                
+                {/* Castle Bricks Decor */}
+                <div className="absolute top-0 left-0 w-2 h-2 bg-slate-800"></div>
+                <div className="absolute top-0 right-0 w-2 h-2 bg-slate-800"></div>
+                <div className="absolute bottom-0 left-0 w-2 h-2 bg-slate-800"></div>
+                <div className="absolute bottom-0 right-0 w-2 h-2 bg-slate-800"></div>
+            </div>
+        )
+    }).reverse(); 
   };
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-slate-950">
-      {/* Background Animation Layer */}
-      <div className="absolute inset-0 z-0 opacity-20 bg-pattern animate-pan pointer-events-none"></div>
+    <div className="flex flex-col items-center justify-center h-full w-full animate-[fadeIn_1s_ease-out]">
+        <h2 className="text-3xl font-bold font-serif text-amber-100 mb-6 drop-shadow-lg flex items-center gap-3">
+            <Castle className="w-8 h-8" /> Weekly Ascent
+        </h2>
+        
+        <div className="flex flex-col items-center gap-0 mb-8 py-10 px-12 bg-black/40 rounded-lg border border-slate-800 shadow-2xl backdrop-blur-sm relative overflow-hidden">
+            {renderFloors()}
+        </div>
 
-      {/* Content Layer */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen w-full max-w-md mx-auto p-6 gap-6 md:gap-8">
-         <div className="text-center space-y-2 mt-4">
-            <h1 className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-indigo-400 to-cyan-400 leading-tight font-serif tracking-tighter">
-              Towerflip
-            </h1>
-            <p className="text-slate-500 text-sm font-serif italic">The Daily Tower awaits.</p>
-         </div>
-         
-         {/* Play & Store Section */}
-         <div className="flex flex-col w-full gap-4 max-w-sm">
-            <button onClick={startRun} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white p-6 rounded-sm font-bold text-xl transition-all shadow-lg flex items-center justify-center gap-3 active:scale-95 group">
-              <Sword className="w-5 h-5 group-hover:rotate-45 transition-transform" /> <span className="font-serif tracking-widest">PLAY</span>
-            </button>
-            
-            <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => setScreen('STORE')} className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 p-4 rounded-sm font-bold transition-all flex flex-col items-center justify-center gap-2 active:scale-95">
-                <ShoppingBag className="w-5 h-5 text-amber-600" />
-                <span className="text-xs uppercase tracking-widest">Store</span>
-                </button>
-                
-                <button onClick={() => setScreen('BESTIARY')} className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 p-4 rounded-sm font-bold transition-all flex flex-col items-center justify-center gap-2 active:scale-95">
-                <BookOpen className="w-5 h-5 text-indigo-500" />
-                <span className="text-xs uppercase tracking-widest">Bestiary</span>
-                </button>
-            </div>
-         </div>
-
-         {/* Prominent Daily Reward Section */}
-         <div className={`w-full max-w-sm rounded-lg p-5 border shadow-xl flex flex-col items-center gap-4 transition-all ${canClaim ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-amber-500/50 shadow-amber-900/20' : 'bg-slate-900/50 border-slate-800 opacity-90'}`}>
-            <div className="flex items-center gap-3 w-full justify-center">
-              <div className={`p-2 rounded-full ${canClaim ? 'bg-amber-900/30' : 'bg-slate-800'}`}>
-                 <Flame className={`w-6 h-6 ${canClaim ? 'text-amber-500 animate-pulse' : 'text-slate-600'}`} />
-              </div>
-              <div className="text-center">
-                <h3 className={`font-bold text-base font-serif tracking-wide ${canClaim ? 'text-amber-200' : 'text-slate-400'}`}>Daily Reward</h3>
-                {!canClaim && <p className="text-[10px] text-slate-500 font-mono tracking-widest mt-1">AVAILABLE IN</p>}
-              </div>
-            </div>
-
-            {canClaim ? (
-                <button 
-                  onClick={claimDaily}
-                  className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded shadow-lg flex items-center justify-center gap-2 animate-pop active:scale-95 transition-transform"
-                >
-                  <Coins className="w-5 h-5 fill-amber-200" />
-                  <span>Claim 10 Coins</span>
-                </button>
-            ) : (
-                <div className="w-full py-3 bg-slate-950 border border-slate-800 rounded flex items-center justify-center gap-3 text-slate-400 font-mono text-xl shadow-inner">
-                   <Clock className="w-5 h-5 text-slate-600" />
-                   <span>{timeString}</span>
-                </div>
-            )}
-         </div>
-
-         {/* Stats */}
-         <div className="grid grid-cols-3 gap-3 w-full max-w-sm mt-2">
-            <div className="bg-slate-900/80 border border-slate-800 p-3 rounded flex flex-col items-center justify-center gap-1 shadow-lg backdrop-blur-sm">
-              <Coins className="w-5 h-5 text-amber-500" />
-              <div className="flex flex-col items-center leading-none">
-                 <span className="text-amber-100 font-bold font-mono text-sm">{userProgress.coins}</span>
-                 <span className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">Gold</span>
-              </div>
-            </div>
-            
-            <div className="bg-slate-900/80 border border-slate-800 p-3 rounded flex flex-col items-center justify-center gap-1 shadow-lg backdrop-blur-sm">
-              <Skull className="w-5 h-5 text-red-500" />
-              <div className="flex flex-col items-center leading-none">
-                 <span className="text-red-100 font-bold font-mono text-sm">{userProgress.bestiary.length}</span>
-                 <span className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">Kills</span>
-              </div>
-            </div>
-
-            <div className="bg-slate-900/80 border border-slate-800 p-3 rounded flex flex-col items-center justify-center gap-1 shadow-lg backdrop-blur-sm">
-              <RectangleVertical className="w-5 h-5 text-indigo-400" />
-              <div className="flex flex-col items-center leading-none w-full">
-                 <span className="text-indigo-100 font-bold font-mono text-xs truncate max-w-[80px]">{currentTheme.name}</span>
-                 <span className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">Theme</span>
-              </div>
-            </div>
-         </div>
-
-         {/* Version Number */}
-         <div className="absolute bottom-2 text-[10px] text-slate-800 font-mono">
-           v{GAME_VERSION}
-         </div>
-      </div>
+        <div className="flex gap-4">
+             <button onClick={onShare} className="px-8 py-3 bg-indigo-900 hover:bg-indigo-800 border border-indigo-700 text-indigo-200 font-bold rounded-sm flex items-center justify-center gap-2 uppercase tracking-widest text-xs transition-colors">
+                 {showCopied ? <><Check className="w-3 h-3" /> Copied!</> : <><Share2 className="w-3 h-3" /> Share Run</>}
+             </button>
+             <button onClick={onContinue} className="px-8 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold rounded-sm flex items-center justify-center gap-2 uppercase tracking-widest text-xs transition-colors">
+                Return to Camp
+             </button>
+        </div>
     </div>
   );
 };
@@ -164,7 +289,6 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('dungeon_user_progress');
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Migration: Ensure lastClaimTimestamp exists
       return {
         ...parsed,
         lastClaimTimestamp: parsed.lastClaimTimestamp || 0
@@ -191,6 +315,7 @@ const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.LOADING);
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
   const [combo, setCombo] = useState<number>(0);
+  const [comboOwner, setComboOwner] = useState<'PLAYER' | 'ENEMY' | null>(null);
   const [isShuffling, setIsShuffling] = useState(false);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [loadingPhrase, setLoadingPhrase] = useState<string>("Loading...");
@@ -198,6 +323,10 @@ const App: React.FC = () => {
   // Track if it is the first turn of the round (for Foretell mechanic)
   const isFirstTurnRef = useRef<boolean>(true);
   
+  // Boss AI Mistake Tracking
+  const bossMistakesRef = useRef<number>(0);
+  const enemyMatchesInTurn = useRef<number>(0);
+
   // Run State
   const [enemies, setEnemies] = useState<Entity[]>([]);
   const [currentFloor, setCurrentFloor] = useState(0); // 0, 1, 2
@@ -297,11 +426,21 @@ const App: React.FC = () => {
     aiMistakeMade.current = false;
     aiMemory.current.clear();
     setCombo(0);
+    setComboOwner(null);
+    enemyMatchesInTurn.current = 0;
     setFlippedIndices([]);
     setPlayerAnim('');
     setEnemyAnim('');
     setIsShuffling(false);
     isFirstTurnRef.current = true; // Reset first turn trigger
+    
+    // Reset Boss Mistakes
+    if (currentEnemy.difficulty === 'HARD') {
+        bossMistakesRef.current = Math.floor(Math.random() * 3) + 1; // 1 to 3 mistakes
+        console.log(`Boss will make ${bossMistakesRef.current} intentional mistakes.`);
+    } else {
+        bossMistakesRef.current = 0;
+    }
     
     // Generate new deck for the floor
     const initialDeck = generateDeck(`${getTodayString()}-floor-${currentFloor}`);
@@ -372,6 +511,7 @@ const App: React.FC = () => {
         aiMemory.current.clear();
         setIsShuffling(false);
         isFirstTurnRef.current = true; // Reset first turn trigger on reshuffle
+        enemyMatchesInTurn.current = 0; // Reset enemy streak tracking
 
         // Check if it was Enemy's turn when board cleared
         if (currentTurnState === GameState.ENEMY_ACTING || currentTurnState === GameState.ENEMY_THINKING) {
@@ -590,6 +730,7 @@ const App: React.FC = () => {
                     unflipCards(newFlipped);
                     // End turn, reset combo
                     setCombo(0); 
+                    setComboOwner(null);
                     setGameState(GameState.ENEMY_THINKING);
                 }, 1000);
             }
@@ -607,16 +748,23 @@ const App: React.FC = () => {
       return c;
     });
     setFlippedIndices([]);
+    setComboOwner(who);
 
-    // Determine Combo Status
+    if (who === 'ENEMY') {
+        enemyMatchesInTurn.current += 1;
+    } else {
+        // If player matches, reset enemy streak counter (though normally turns switch, this is safe)
+        enemyMatchesInTurn.current = 0;
+    }
+
+    // Logic for Combo display - Shared by Player and Enemy
     if (combo > 0) {
         let text = "COMBO!";
         if (combo === 2) text = "SUPER COMBO!";
         else if (combo === 3) text = "MEGA COMBO!";
         else if (combo >= 4) text = "ULTRA COMBO!";
         
-        // Log to console instead of screen overlay
-        addLog(text, 'info');
+        addLog(text, 'info'); 
         
         // Play combo sound for impact (both player and enemy)
         setTimeout(() => playSound('combo'), 100);
@@ -642,7 +790,7 @@ const App: React.FC = () => {
     aiMemory.current.delete(idx2);
 
     if (who === 'ENEMY') {
-      setTimeout(() => executeAiTurn(), 1000); 
+       setTimeout(() => executeAiTurn(), 1000); 
     }
   };
 
@@ -742,9 +890,10 @@ const App: React.FC = () => {
             guaranteedMistake = true;
             break;
         case 'HARD':
-            mistakeChance = 0.45; // Significantly increased to give player a chance
-            forgetChance = 0.3;   // Increased forget chance
-            guaranteedMistake = true; // Guarantees at least one mistake
+            // Nerfed boss difficulty: Higher mistake/forget chance
+            mistakeChance = 0.6; 
+            forgetChance = 0.4; 
+            guaranteedMistake = true; 
             break;
     }
     
@@ -761,11 +910,25 @@ const App: React.FC = () => {
       seenEffects.set(card.effect, idx);
     }
 
-    // Mistake Logic
+    // Determine if we should force a mistake due to streak cap
+    // We want to stop the streak AT 2 (forcing 3rd to miss).
+    const forceStreakEnd = enemyMatchesInTurn.current >= 2;
+
+    if (forceStreakEnd && matchFound) {
+       addLog(`${enemy.name} gets greedy and loses focus...`, 'info'); 
+       matchFound = null; // Forget the known pair
+    }
+
+    // --- Special Boss AI (Hard) Intentional Mistake Logic ---
+    const cardsInPlay = cards.filter(c => !c.isMatched).length;
+    if (enemy.difficulty === 'HARD' && cardsInPlay > 4 && bossMistakesRef.current > 0 && matchFound && !forceStreakEnd) {
+        matchFound = null;
+        bossMistakesRef.current--;
+        addLog(`${enemy.name} seems distracted by the chaos...`, 'info');
+    }
+
+    // Mistake Logic (Standard)
     if (matchFound) {
-       // Guaranteed mistake logic (only happens once per match for Medium, maybe always for Easy?)
-       // Let's stick to "once per match" logic for Medium. Easy acts dumb randomly.
-       
        let forceError = false;
        if (guaranteedMistake && !aiMistakeMade.current) {
           forceError = true;
@@ -819,7 +982,8 @@ const App: React.FC = () => {
                  aiMistakeMade.current = true;
              }
 
-             if (forceError || Math.random() < mistakeChance) {
+             // If forceStreakEnd is active, ensure we mistake
+             if (forceStreakEnd || forceError || Math.random() < mistakeChance) {
                  const validSeconds = availableIndices.filter(i => i !== firstIdx && i !== pairInMem);
                  if (validSeconds.length > 0) {
                      secondIdx = validSeconds[Math.floor(Math.random() * validSeconds.length)];
@@ -851,6 +1015,7 @@ const App: React.FC = () => {
                setTimeout(() => {
                  unflipCards([firstIdx, secondIdx]);
                  setCombo(0); 
+                 setComboOwner(null);
                  setGameState(GameState.PLAYER_TURN);
                }, 1000);
             }
@@ -893,8 +1058,8 @@ const App: React.FC = () => {
     };
 
     return (
-      <div className="h-screen w-full flex flex-col max-w-5xl mx-auto bg-slate-950 text-slate-200">
-        <header className="flex-none flex items-center justify-between p-4 border-b border-slate-900 bg-slate-950/80 backdrop-blur-md z-10">
+      <div className="h-screen w-full flex flex-col max-w-5xl mx-auto text-slate-200 z-10 relative">
+        <header className="flex-none flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md z-10">
            <button onClick={() => setScreen('MENU')} className="flex items-center gap-2 text-slate-500 hover:text-slate-200 transition-colors uppercase tracking-widest text-xs font-bold">
              <ArrowLeft className="w-4 h-4" /> Return
            </button>
@@ -965,8 +1130,8 @@ const App: React.FC = () => {
   // --- BESTIARY COMPONENT ---
   const renderBestiary = () => {
     return (
-      <div className="h-screen w-full flex flex-col max-w-5xl mx-auto bg-slate-950 text-slate-200">
-        <header className="flex-none flex items-center justify-between p-4 border-b border-slate-900 bg-slate-950/80 backdrop-blur-md z-10">
+      <div className="h-screen w-full flex flex-col max-w-5xl mx-auto text-slate-200 z-10 relative">
+        <header className="flex-none flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md z-10">
            <button onClick={() => setScreen('MENU')} className="flex items-center gap-2 text-slate-500 hover:text-slate-200 transition-colors uppercase tracking-widest text-xs font-bold">
              <ArrowLeft className="w-4 h-4" /> Return
            </button>
@@ -1021,7 +1186,7 @@ const App: React.FC = () => {
 
     if (gameState === GameState.LOADING) {
       return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white relative">
+        <div className="min-h-screen flex items-center justify-center text-white relative z-10">
           <div className="flex flex-col items-center gap-8">
             <div className="relative w-32 h-32 flex items-center justify-center animate-orbit">
                <div className="loader-card" style={{ transform: 'translateY(-40px)' }}></div>
@@ -1035,7 +1200,7 @@ const App: React.FC = () => {
     }
 
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col md:flex-row max-w-7xl mx-auto relative overflow-hidden">
+      <div className="min-h-screen text-slate-100 font-sans flex flex-col md:flex-row max-w-7xl mx-auto relative overflow-hidden z-10">
         
         {/* Foretell Announcement Overlay */}
         {announcement && (
@@ -1066,7 +1231,13 @@ const App: React.FC = () => {
           {/* STATS GRID */}
           <div className="grid grid-cols-2 md:grid-cols-1 gap-2 md:gap-4 mb-2 md:mb-4">
              {/* ENEMY SECTION */}
-            <div className={`col-span-1 bg-slate-900/50 p-2 md:p-4 rounded-sm border border-red-900/20 shadow-lg ${enemyAnim} transition-transform`}>
+            <div className={`col-span-1 bg-slate-900/50 p-2 md:p-4 rounded-sm border border-red-900/20 shadow-lg ${enemyAnim} transition-transform relative overflow-hidden`}>
+              {combo > 1 && comboOwner === 'ENEMY' && (
+                <div className="absolute top-2 right-2 flex items-center gap-1 text-amber-500 font-bold animate-pulse bg-black/80 px-2 rounded-sm border border-amber-900/50 scale-75 origin-right">
+                  <Zap className="w-3 h-3 fill-amber-500" />
+                  <span className="text-xs">x{1 + combo * 0.5}</span>
+                </div>
+              )}
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-10 h-10 md:w-12 md:h-12 rounded-sm bg-black/40 flex items-center justify-center border border-red-900/30 overflow-hidden text-2xl md:text-3xl">
                    {enemy.visual}
@@ -1084,7 +1255,7 @@ const App: React.FC = () => {
 
             {/* PLAYER SECTION */}
             <div className={`col-span-1 bg-slate-900/50 p-2 md:p-4 rounded-sm border border-indigo-900/20 shadow-lg relative overflow-hidden ${playerAnim} transition-transform`}>
-              {combo > 1 && (
+              {combo > 1 && comboOwner === 'PLAYER' && (
                 <div className="absolute top-2 right-2 flex items-center gap-1 text-amber-500 font-bold animate-pulse bg-black/80 px-2 rounded-sm border border-amber-900/50 scale-75 origin-right">
                   <Zap className="w-3 h-3 fill-amber-500" />
                   <span className="text-xs">x{1 + combo * 0.5}</span>
@@ -1115,7 +1286,7 @@ const App: React.FC = () => {
               {logs.length === 0 && <span className="text-slate-700 italic font-serif">Battle started.</span>}
               {logs.map((log) => (
                 <div key={log.id} className={`
-                  ${log.message.includes('COMBO') ? 'text-amber-500 font-bold animate-pulse uppercase tracking-wider' : 
+                  ${log.message.includes('COMBO') ? 'text-amber-500 font-black text-xs md:text-sm animate-pulse uppercase tracking-wider drop-shadow-md' : 
                     log.type === 'enemy' ? 'text-red-900/80' : 
                     log.type === 'player' ? 'text-slate-400' : 
                     log.type === 'heal' ? 'text-emerald-900' : 'text-slate-600'}
@@ -1168,74 +1339,39 @@ const App: React.FC = () => {
           {/* OVERLAYS (Victory / Defeat / Level Clear) */}
           {(gameState === GameState.VICTORY || gameState === GameState.DEFEAT || gameState === GameState.LEVEL_COMPLETE) && (
             <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-               <div className="bg-slate-950 border border-slate-800 p-6 md:p-8 rounded-sm shadow-2xl max-w-sm w-full text-center transform transition-all animate-[fadeIn_0.5s_ease-out]">
-                  
-                  {gameState === GameState.LEVEL_COMPLETE && (
-                    <div className="flex flex-col items-center gap-4">
-                      <ArrowUpCircle className="w-16 h-16 text-emerald-900 animate-pulse" />
-                      <h2 className="text-2xl font-bold font-serif text-slate-200">Floor Cleared</h2>
-                      <p className="text-slate-500 text-sm font-serif italic">The echo of {enemy.name} fades.</p>
+               {gameState === GameState.VICTORY ? (
+                   // Replace standard victory modal with Tower Ascension Screen
+                   <TowerAscension 
+                      onContinue={() => setScreen('MENU')} 
+                      floorCleared={true} 
+                      onShare={shareResult} 
+                      showCopied={showCopied} 
+                   />
+               ) : (
+                   <div className="bg-slate-950 border border-slate-800 p-0 rounded-sm shadow-2xl max-w-sm w-full text-center transform transition-all animate-[fadeIn_0.5s_ease-out] overflow-hidden">
                       
-                      {player.currentHp >= player.maxHp ? (
-                        <div className="flex flex-col items-center gap-2 mt-2 p-3 bg-amber-950/20 border border-amber-900/50 rounded-lg w-full">
-                            <div className="flex items-center gap-2">
-                                <Coins className="w-5 h-5 text-amber-400 animate-bounce" />
-                                <span className="text-amber-300 font-bold font-serif text-sm">Perfect Health!</span>
-                            </div>
-                            <span className="text-amber-500/80 text-xs uppercase tracking-widest">+5 Coins Found</span>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center gap-2 mt-2 p-3 bg-emerald-950/20 border border-emerald-900/50 rounded-lg w-full">
-                            <div className="flex items-center gap-2">
-                                <Heart className="w-5 h-5 text-emerald-400 animate-bounce" />
-                                <span className="text-emerald-300 font-bold font-serif text-sm animate-heal-glow">Resting at Campfire</span>
-                            </div>
-                            <span className="text-emerald-500/80 text-xs uppercase tracking-widest">+3 Health Recovered</span>
+                      {gameState === GameState.LEVEL_COMPLETE && (
+                         <TowerLevelTransition currentFloor={currentFloor} onNext={nextFloor} />
+                      )}
+    
+                      {gameState === GameState.DEFEAT && (
+                        <div className="p-8 flex flex-col items-center gap-4">
+                          <Skull className="w-16 h-16 text-red-900 animate-pulse" />
+                          <h2 className="text-3xl font-bold font-serif text-slate-200">Defeat</h2>
+                          <p className="text-slate-500 font-serif italic">You were defeated.</p>
+                          <div className="flex gap-2 mt-4 w-full">
+                             <button onClick={shareResult} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold rounded-sm flex items-center justify-center gap-2 uppercase tracking-widest text-[10px]">
+                                {showCopied ? <><Check className="w-3 h-3" /> Copied!</> : <><Share2 className="w-3 h-3" /> Share</>}
+                             </button>
+                             <button onClick={() => setScreen('MENU')} className="flex-1 py-3 bg-indigo-900/30 hover:bg-indigo-900/50 border border-indigo-900 text-indigo-300 font-bold rounded-sm uppercase tracking-widest text-[10px]">
+                                Try Again
+                             </button>
+                          </div>
                         </div>
                       )}
-
-                      <button 
-                        onClick={nextFloor}
-                        className="w-full py-3 mt-4 bg-emerald-900/20 hover:bg-emerald-900/40 border border-emerald-900/50 text-emerald-400 font-bold rounded-sm shadow-lg flex items-center justify-center gap-2 uppercase tracking-widest text-xs"
-                      >
-                         Next Floor <ArrowUpCircle className="w-3 h-3" />
-                      </button>
-                    </div>
-                  )}
-
-                  {gameState === GameState.VICTORY && (
-                    <div className="flex flex-col items-center gap-4">
-                      <Trophy className="w-16 h-16 text-amber-700 animate-pulse" />
-                      <h2 className="text-3xl font-bold font-serif text-slate-200">Victory!</h2>
-                      <p className="text-slate-500 font-serif italic">You have cleared the dungeon.</p>
-                      <div className="flex gap-2 mt-4 w-full">
-                         <button onClick={shareResult} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold rounded-sm flex items-center justify-center gap-2 uppercase tracking-widest text-[10px]">
-                            {showCopied ? <><Check className="w-3 h-3" /> Copied!</> : <><Share2 className="w-3 h-3" /> Share</>}
-                         </button>
-                         <button onClick={() => setScreen('MENU')} className="flex-1 py-3 bg-indigo-900/30 hover:bg-indigo-900/50 border border-indigo-900 text-indigo-300 font-bold rounded-sm uppercase tracking-widest text-[10px]">
-                            Return
-                         </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {gameState === GameState.DEFEAT && (
-                    <div className="flex flex-col items-center gap-4">
-                      <Skull className="w-16 h-16 text-red-900 animate-pulse" />
-                      <h2 className="text-3xl font-bold font-serif text-slate-200">Defeat</h2>
-                      <p className="text-slate-500 font-serif italic">You were defeated.</p>
-                      <div className="flex gap-2 mt-4 w-full">
-                         <button onClick={shareResult} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold rounded-sm flex items-center justify-center gap-2 uppercase tracking-widest text-[10px]">
-                            {showCopied ? <><Check className="w-3 h-3" /> Copied!</> : <><Share2 className="w-3 h-3" /> Share</>}
-                         </button>
-                         <button onClick={() => setScreen('MENU')} className="flex-1 py-3 bg-indigo-900/30 hover:bg-indigo-900/50 border border-indigo-900 text-indigo-300 font-bold rounded-sm uppercase tracking-widest text-[10px]">
-                            Try Again
-                         </button>
-                      </div>
-                    </div>
-                  )}
-
-               </div>
+    
+                   </div>
+               )}
             </div>
           )}
         </div>
@@ -1245,12 +1381,12 @@ const App: React.FC = () => {
 
   // --- MAIN RENDER ---
   return (
-    <>
+    <div className="relative min-h-screen w-full bg-slate-900">
       {screen === 'MENU' && <Menu userProgress={userProgress} setUserProgress={setUserProgress} setScreen={setScreen} startRun={startRun} />}
       {screen === 'STORE' && renderStore()}
       {screen === 'BESTIARY' && renderBestiary()}
       {screen === 'GAME' && renderGame()}
-    </>
+    </div>
   );
 };
 
