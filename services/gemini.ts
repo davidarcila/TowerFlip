@@ -1,39 +1,54 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { Entity } from "../types";
+import { Entity, BossType } from "../types";
 
-export const generateDailyEnemy = async (dateString: string): Promise<Entity[]> => {
+export const generateDailyEnemy = async (dateString: string, difficultyMultiplier: number = 1): Promise<Entity[]> => {
+  // Helper to pick a random boss type
+  const getBossType = (): BossType => {
+    const types: BossType[] = ['BURN', 'SLIME', 'CONFUSION'];
+    return types[Math.floor(Math.random() * types.length)];
+  };
+
+  const todayBossType = getBossType();
+  
+  const hpEasy = Math.floor(6 * difficultyMultiplier);
+  const hpMed = Math.floor(10 * difficultyMultiplier);
+  const hpHard = Math.floor(15 * difficultyMultiplier);
+
   // Fallback enemies if API fails
   const fallbackEnemies: Entity[] = [
     {
       name: "Rotting Rat",
-      maxHp: 6,
-      currentHp: 6,
+      maxHp: hpEasy,
+      currentHp: hpEasy,
       shield: 0,
       description: "It gnaws at the roots of the world.",
       visual: "🐀",
       coins: 0,
-      difficulty: 'EASY'
+      difficulty: 'EASY',
+      bossType: 'NONE'
     },
     {
       name: "Hollow Guard",
-      maxHp: 10,
-      currentHp: 10,
+      maxHp: hpMed,
+      currentHp: hpMed,
       shield: 0,
       description: "Armor rusting over nothing but dust.",
       visual: "🛡️",
       coins: 0,
-      difficulty: 'MEDIUM'
+      difficulty: 'MEDIUM',
+      bossType: 'NONE'
     },
     {
       name: "The Forgotten",
-      maxHp: 15,
-      currentHp: 15,
+      maxHp: hpHard,
+      currentHp: hpHard,
       shield: 0,
       description: "It remembers you, but you do not remember it.",
       visual: "👁️",
       coins: 0,
-      difficulty: 'HARD'
+      difficulty: 'HARD',
+      bossType: todayBossType // Assign random boss type
     }
   ];
 
@@ -47,14 +62,15 @@ export const generateDailyEnemy = async (dateString: string): Promise<Entity[]> 
     
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Generate 3 fantasy enemies for a roguelike card game Daily Run (Date: ${dateString}). 
-                 The tone should be "Dark Fantasy" but the descriptions should be clear, concise, and descriptive (not overly poetic or cryptic).
+      contents: `Generate 3 fantasy enemies for a roguelike card game Tower (Seed: ${dateString}, Difficulty Multiplier: ${difficultyMultiplier}). 
+                 The enemies should get progressively stronger in description.
+                 The tone should be "Dark Fantasy".
                  Max 12 words per description.
                  For each enemy, provide a single UTF-8 Emoji that best represents it in the "visual" field.
                  
-                 1. First enemy: Difficulty Easy (Weak, ~6 HP).
-                 2. Second enemy: Difficulty Medium (Average, ~10 HP).
-                 3. Third enemy: Difficulty Hard (Boss, ~15 HP).
+                 1. First enemy: Difficulty Easy (Weak, ~${hpEasy} HP).
+                 2. Second enemy: Difficulty Medium (Average, ~${hpMed} HP).
+                 3. Third enemy: Difficulty Hard (Boss, ~${hpHard} HP).
                  
                  Return them as a JSON list.`,
       config: {
@@ -79,9 +95,9 @@ export const generateDailyEnemy = async (dateString: string): Promise<Entity[]> 
       const data = JSON.parse(response.text) as any[];
       if (Array.isArray(data) && data.length >= 3) {
          return [
-           { ...data[0], currentHp: data[0].maxHp, shield: 0, coins: 0, difficulty: 'EASY' },
-           { ...data[1], currentHp: data[1].maxHp, shield: 0, coins: 0, difficulty: 'MEDIUM' },
-           { ...data[2], currentHp: data[2].maxHp, shield: 0, coins: 0, difficulty: 'HARD' },
+           { ...data[0], maxHp: hpEasy, currentHp: hpEasy, shield: 0, coins: 0, difficulty: 'EASY', bossType: 'NONE' },
+           { ...data[1], maxHp: hpMed, currentHp: hpMed, shield: 0, coins: 0, difficulty: 'MEDIUM', bossType: 'NONE' },
+           { ...data[2], maxHp: hpHard, currentHp: hpHard, shield: 0, coins: 0, difficulty: 'HARD', bossType: todayBossType },
          ];
       }
     }

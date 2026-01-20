@@ -15,9 +15,12 @@ export interface CardData {
   effect: CardEffect;
   isFlipped: boolean;
   isMatched: boolean;
+  isSlimed?: boolean;
+  isWildcard?: boolean; // New: Matches with anything
 }
 
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
+export type BossType = 'NONE' | 'BURN' | 'SLIME' | 'CONFUSION';
 
 export interface Entity {
   name: string;
@@ -26,9 +29,10 @@ export interface Entity {
   shield: number;
   coins?: number;
   description?: string;
-  visual: string; // Changed from imageUrl to visual (emoji)
+  visual: string;
   dateEncountered?: string;
   difficulty: Difficulty;
+  bossType?: BossType;
 }
 
 export enum GameState {
@@ -36,15 +40,16 @@ export enum GameState {
   PLAYER_TURN = 'PLAYER_TURN',
   ENEMY_THINKING = 'ENEMY_THINKING',
   ENEMY_ACTING = 'ENEMY_ACTING',
-  LEVEL_COMPLETE = 'LEVEL_COMPLETE', // New state for between floors
-  VICTORY = 'VICTORY', // Final victory
+  LEVEL_COMPLETE = 'LEVEL_COMPLETE',
+  VICTORY = 'VICTORY',
   DEFEAT = 'DEFEAT',
+  MERCHANT = 'MERCHANT', // New State
 }
 
 export interface LogEntry {
   id: string;
   message: string;
-  type: 'info' | 'player' | 'enemy' | 'heal';
+  type: 'info' | 'player' | 'enemy' | 'heal' | 'burn' | 'item';
 }
 
 export type Screen = 'MENU' | 'GAME' | 'STORE' | 'BESTIARY';
@@ -54,17 +59,27 @@ export interface CardTheme {
   name: string;
   price: number;
   description: string;
-  // CSS classes for the back container
   bgClass: string;
-  // CSS classes for the inner decoration
   decorClass: string;
+}
+
+export type ItemId = 'SPYGLASS' | 'HOURGLASS' | 'EYE_OF_FATE' | 'BANDAGE' | 'MERCY' | 'BRAINFOG' | 'SLEEP' | 'RITUAL' | 'CANDLE' | 'TRICKSTER' | 'MIRROR';
+
+export interface Item {
+  id: ItemId;
+  name: string;
+  description: string;
+  cost: number;
+  icon: string;
 }
 
 export interface UserProgress {
   coins: number;
   unlockedThemes: string[];
   selectedThemeId: string;
-  lastDailyClaim: string; // Kept for legacy compatibility
-  lastClaimTimestamp?: number; // New field for 24h timer
-  bestiary: Entity[]; // List of defeated enemies
+  lastDailyClaim: string;
+  lastClaimTimestamp?: number;
+  bestiary: Entity[];
+  inventory: ItemId[]; // New: Persist items
+  towerLevel: number; // New: Track highest tower reached
 }

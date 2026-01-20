@@ -1,7 +1,7 @@
 
-import { CardEffect, CardData, CardTheme } from './types';
+import { CardEffect, CardData, CardTheme, Item } from './types';
 
-export const GAME_VERSION = '1.3.2';
+export const GAME_VERSION = '2.0.0';
 
 // Simple seeded RNG for the daily board layout
 export class SeededRNG {
@@ -36,6 +36,20 @@ export const EFFECT_CONFIG = {
   [CardEffect.COIN_MEDIUM]: { value: 10, label: 'Treasure', icon: 'coins', color: 'text-amber-500' },
 };
 
+export const ITEMS: Item[] = [
+  { id: 'SPYGLASS', name: 'Spyglass', description: 'Reveal 3 random cards.', cost: 10, icon: '🔭' },
+  { id: 'HOURGLASS', name: 'Hourglass', description: 'Take an extra turn immediately.', cost: 15, icon: '⏳' },
+  { id: 'EYE_OF_FATE', name: 'Eye of Fate', description: 'Reveal one guaranteed matching pair.', cost: 10, icon: '🧿' },
+  { id: 'BANDAGE', name: 'Bandage', description: 'Heal 5 HP immediately.', cost: 5, icon: '🩹' },
+  { id: 'MERCY', name: 'Mercy', description: 'Ignore the next wrong match (stays Player turn).', cost: 5, icon: '🙏' },
+  { id: 'BRAINFOG', name: 'Brainfog', description: 'Enemy forgets all card locations.', cost: 10, icon: '🌫️' },
+  { id: 'SLEEP', name: 'Sleep', description: 'Enemy skips their next turn.', cost: 10, icon: '💤' },
+  { id: 'RITUAL', name: 'Ritual', description: 'Lose 4 HP to Reveal 4 random cards.', cost: 10, icon: '🩸' },
+  { id: 'CANDLE', name: 'Candle', description: 'Briefly reveal all, then shuffle one pair.', cost: 15, icon: '🕯️' },
+  { id: 'TRICKSTER', name: 'Trickster', description: 'Turn a random card into a Wildcard.', cost: 5, icon: '🃏' },
+  { id: 'MIRROR', name: 'Mirror', description: 'Double the effect of your next match.', cost: 20, icon: '🪞' },
+];
+
 // 16 Cards total = 8 pairs
 export const DECK_COMPOSITION: CardEffect[] = [
   CardEffect.ATTACK_SMALL,
@@ -48,8 +62,8 @@ export const DECK_COMPOSITION: CardEffect[] = [
   CardEffect.COIN_SMALL, 
 ];
 
-export const generateDeck = (dateString: string): CardData[] => {
-  const rng = new SeededRNG(dateString);
+export const generateDeck = (seedString: string): CardData[] => {
+  const rng = new SeededRNG(seedString);
   
   let deckEffects: CardEffect[] = [];
   DECK_COMPOSITION.forEach(effect => {
@@ -67,6 +81,7 @@ export const generateDeck = (dateString: string): CardData[] => {
     effect,
     isFlipped: false,
     isMatched: false,
+    isWildcard: false,
   }));
 };
 
